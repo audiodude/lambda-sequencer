@@ -1160,17 +1160,17 @@ function syncKeyTopbar() {
 // BOOT PATCH (params baked into defaults — no post-render mutation)
 // =============================================================
 function bootDefaultPatch() {
-  const clock = addModule('CLOCK', 40, 80);
+  const clock = addModule('CLOCK', 40, 40);
   const stepDef = TYPES.STEP.defaults();
   // C major arpeggio-ish boot pattern
   const pitches = [60,null,67,null, 64,null,67,72, 60,null,67,null, 64,65,67,72];
   const vels    = [110,0,90,0,    105,0,90,115,  110,0,90,0,    105,95,100,120];
   stepDef.steps = stepDef.steps.map((s, i) => ({ on: pitches[i] !== null, pitch: pitches[i] ?? 60, vel: vels[i] || 100 }));
-  const seq  = addModule('STEP',     220, 40, { params: stepDef });
-  const quant= addModule('QUANT',    780, 60);
-  const out  = addModule('MIDIOUT',  960, 60);
-  const drum = addModule('EUCLID',   220, 280, { params: { hits: 5, steps: 16, rot: 0, pitch: 36, vel: 110, gateLen: 0.5, div: 1 } });
-  const drumOut = addModule('MIDIOUT', 600, 320, { params: { deviceId: '', channel: 10 } });
+  const seq  = addModule('STEP',     300, 40, { params: stepDef });
+  const quant= addModule('QUANT',    760, 320);
+  const out  = addModule('MIDIOUT',  1020, 320);
+  const drum = addModule('EUCLID',    40, 540, { params: { hits: 5, steps: 16, rot: 0, pitch: 36, vel: 110, gateLen: 0.5, div: 1 } });
+  const drumOut = addModule('MIDIOUT', 360, 540, { params: { deviceId: '', channel: 10 } });
   G.cables.push(
     { from:{mid:clock.id, port:'clk'},  to:{mid:seq.id,    port:'clk'}, type:'clock' },
     { from:{mid:seq.id,   port:'note'}, to:{mid:quant.id,  port:'in'},  type:'note'  },
