@@ -1114,7 +1114,7 @@ document.addEventListener('keydown', e => {
 // =============================================================
 // SAVE / LOAD
 // =============================================================
-const SAVE_KEY = 'lambda-seq-v1';
+const SAVE_KEY = 'lambda-seq-v1:' + location.pathname;
 let saveTimer = null;
 function save() {
   clearTimeout(saveTimer);
@@ -1258,7 +1258,7 @@ function init() {
 
   // Help toggle
   const help = document.getElementById('help');
-  const helpKey = 'lambda-seq-help-seen';
+  const helpKey = 'lambda-seq-help-seen:' + location.pathname;
   if (!localStorage.getItem(helpKey)) help.style.display = '';
   document.getElementById('helpBtn').addEventListener('click', () => { help.style.display = help.style.display==='none'?'':'none'; });
   document.getElementById('helpClose').addEventListener('click', () => { help.style.display='none'; localStorage.setItem(helpKey,'1'); });
