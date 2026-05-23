@@ -1159,26 +1159,40 @@ function syncKeyTopbar() {
 // =============================================================
 // BOOT PATCH (params baked into defaults — no post-render mutation)
 // =============================================================
+// Exported from the live app — edit by arranging modules in-browser and re-exporting.
+const DEFAULT_PATCH = {
+  bpm: 120,
+  key: { root: 0, scale: 'major' },
+  modules: [
+    { id: 1, type: 'CLOCK',   x:  20, y:  40, params: {} },
+    { id: 2, type: 'STEP',    x: 260, y:  40, params: {
+        steps: [
+          { on: true,  pitch: 60, vel: 110 }, { on: false, pitch: 60, vel: 100 },
+          { on: true,  pitch: 67, vel:  90 }, { on: false, pitch: 60, vel: 100 },
+          { on: true,  pitch: 64, vel: 105 }, { on: false, pitch: 60, vel: 100 },
+          { on: true,  pitch: 67, vel:  90 }, { on: true,  pitch: 72, vel: 115 },
+          { on: true,  pitch: 60, vel: 110 }, { on: false, pitch: 60, vel: 100 },
+          { on: true,  pitch: 67, vel:  90 }, { on: false, pitch: 60, vel: 100 },
+          { on: true,  pitch: 64, vel: 105 }, { on: true,  pitch: 65, vel:  95 },
+          { on: true,  pitch: 67, vel: 100 }, { on: true,  pitch: 72, vel: 120 },
+        ],
+        div: 1, gateLen: 0.5, len: 16,
+    } },
+    { id: 3, type: 'QUANT',   x: 685, y: 229, params: {} },
+    { id: 4, type: 'MIDIOUT', x: 940, y: 229, params: { deviceId: '', channel: 1 } },
+    { id: 5, type: 'EUCLID',  x:  18, y: 228, params: { hits: 5, steps: 16, rot: 0, pitch: 36, vel: 110, gateLen: 0.5, div: 1 } },
+    { id: 6, type: 'MIDIOUT', x: 388, y: 227, params: { deviceId: '', channel: 2 } },
+  ],
+  cables: [
+    { from: { mid: 1, port: 'clk'  }, to: { mid: 2, port: 'clk' }, type: 'clock' },
+    { from: { mid: 2, port: 'note' }, to: { mid: 3, port: 'in'  }, type: 'note'  },
+    { from: { mid: 3, port: 'out'  }, to: { mid: 4, port: 'in'  }, type: 'note'  },
+    { from: { mid: 1, port: 'clk'  }, to: { mid: 5, port: 'clk' }, type: 'clock' },
+    { from: { mid: 5, port: 'note' }, to: { mid: 6, port: 'in'  }, type: 'note'  },
+  ],
+};
 function bootDefaultPatch() {
-  const clock = addModule('CLOCK', 40, 40);
-  const stepDef = TYPES.STEP.defaults();
-  // C major arpeggio-ish boot pattern
-  const pitches = [60,null,67,null, 64,null,67,72, 60,null,67,null, 64,65,67,72];
-  const vels    = [110,0,90,0,    105,0,90,115,  110,0,90,0,    105,95,100,120];
-  stepDef.steps = stepDef.steps.map((s, i) => ({ on: pitches[i] !== null, pitch: pitches[i] ?? 60, vel: vels[i] || 100 }));
-  const seq  = addModule('STEP',     300, 40, { params: stepDef });
-  const quant= addModule('QUANT',    760, 320);
-  const out  = addModule('MIDIOUT',  1020, 320);
-  const drum = addModule('EUCLID',    40, 540, { params: { hits: 5, steps: 16, rot: 0, pitch: 36, vel: 110, gateLen: 0.5, div: 1 } });
-  const drumOut = addModule('MIDIOUT', 360, 540, { params: { deviceId: '', channel: 10 } });
-  G.cables.push(
-    { from:{mid:clock.id, port:'clk'},  to:{mid:seq.id,    port:'clk'}, type:'clock' },
-    { from:{mid:seq.id,   port:'note'}, to:{mid:quant.id,  port:'in'},  type:'note'  },
-    { from:{mid:quant.id, port:'out'},  to:{mid:out.id,    port:'in'},  type:'note'  },
-    { from:{mid:clock.id, port:'clk'},  to:{mid:drum.id,   port:'clk'}, type:'clock' },
-    { from:{mid:drum.id,  port:'note'}, to:{mid:drumOut.id,port:'in'},  type:'note'  },
-  );
-  renderCables();
+  load(DEFAULT_PATCH);
 }
 
 // =============================================================
