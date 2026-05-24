@@ -145,7 +145,6 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
 <div id="topbar">
   <div class="logo">λ-SEQ</div>
   <div class="sep"></div>
-  <div class="bpm"><label>BPM</label> <input id="bpm" type="number" min="20" max="300" value="120"></div>
   <button id="play" class="play">▶ PLAY</button>
   <div class="sep"></div>
   <label>KEY</label>
@@ -418,23 +417,55 @@ function panic() {
 const TYPES = {};
 
 // -------- CLOCK ----------
+const CLOCK_BPMS = [60, 80, 90, 100, 110, 120, 128, 140, 160, 180];
 TYPES.CLOCK = {
   title: 'CLOCK',
   inputs: [],
   outputs: [{name:'clk', type:'clock'}],
-  defaults: () => ({}),
-  bodyHTML(m) { return `<div class="big" data-led>${TR.bpm} BPM</div><div class="sub">1/16 pulses · ${TR.source}</div>`; },
+  defaults: () => ({ mode: 'internal', bpm: 120 }),
+  bodyHTML(m) {
+    const isExt = m.params.mode === 'ext';
+    const opts = [
+      `<option value="ext"${isExt ? ' selected' : ''}>EXT</option>`,
+      ...CLOCK_BPMS.map(b => `<option value="${b}"${(!isExt && m.params.bpm === b) ? ' selected' : ''}>${b} BPM</option>`),
+    ].join('');
+    return `<div class="row"><label>SRC</label><select data-clksel>${opts}</select></div>
+            <div class="big" data-led>${isExt ? 'EXT' : m.params.bpm + ' BPM'}</div>
+            <div class="sub" data-sub>1/16 pulses · ${isExt ? 'external' : 'internal'}</div>`;
+  },
   bind(m) {
     m.ui.led = m.ui.body.querySelector('[data-led]');
-    m.ui.sub = m.ui.body.querySelector('.sub');
+    m.ui.sub = m.ui.body.querySelector('[data-sub]');
+    m.ui.sel = m.ui.body.querySelector('[data-clksel]');
+    // Apply this module's params to the global transport (CLOCK owns mode/bpm)
+    applyClockParams(m);
+    m.ui.sel.addEventListener('change', e => {
+      const v = e.target.value;
+      if (v === 'ext') m.params.mode = 'ext';
+      else { m.params.mode = 'internal'; m.params.bpm = +v; }
+      if (TR.playing) stopTransport();
+      applyClockParams(m);
+      save();
+    });
   },
   onInput() {},
 };
+function applyClockParams(m) {
+  if (m.params.mode === 'ext') {
+    TR.source = 'external';
+    if (!MIDI.extClockInId) setStatus('CLOCK set to EXT but no EXT CLK device selected', true);
+  } else {
+    TR.source = 'internal';
+    TR.bpm = clamp(+m.params.bpm || 120, 20, 300);
+  }
+  updateClockDisplay();
+}
 function updateClockDisplay() {
   for (const m of G.modules.values()) {
     if (m.type !== 'CLOCK') continue;
-    if (m.ui.led) m.ui.led.textContent = `${TR.bpm} BPM`;
-    if (m.ui.sub) m.ui.sub.textContent = `1/16 pulses · ${TR.source}`;
+    const isExt = m.params.mode === 'ext';
+    if (m.ui.led) m.ui.led.textContent = isExt ? 'EXT' : `${m.params.bpm} BPM`;
+    if (m.ui.sub) m.ui.sub.textContent = `1/16 pulses · ${isExt ? 'external' : 'internal'}`;
   }
 }
 function flashClock(m) {
@@ -1139,12 +1170,11 @@ function load(data) {
   renderCables();
   if (!data) return;
   TR.bpm = data.bpm || 120;
-  document.getElementById('bpm').value = TR.bpm;
   if (data.key) { KEY.root = data.key.root||0; KEY.scale = data.key.scale||'major'; }
   syncKeyTopbar();
   for (const md of (data.modules || [])) addModule(md.type, md.x, md.y, { id: md.id, params: md.params });
   for (const c of (data.cables || [])) G.cables.push(c);
-  if (data.source) TR.source = data.source;
+  // TR.source and TR.bpm are owned by the CLOCK module — its bind() set them via applyClockParams.
   if (data.clockOutId) MIDI.clockOutId = data.clockOutId;
   if (data.extClockInId) MIDI.extClockInId = data.extClockInId;
   renderCables();
@@ -1164,7 +1194,7 @@ const DEFAULT_PATCH = {
   bpm: 120,
   key: { root: 0, scale: 'major' },
   modules: [
-    { id: 1, type: 'CLOCK',   x:  20, y:  40, params: {} },
+    { id: 1, type: 'CLOCK',   x:  20, y:  40, params: { mode: 'internal', bpm: 120 } },
     { id: 2, type: 'STEP',    x: 260, y:  40, params: {
         steps: [
           { on: true,  pitch: 60, vel: 110 }, { on: false, pitch: 60, vel: 100 },
@@ -1208,24 +1238,13 @@ function init() {
   scaleSel.addEventListener('change', e => { KEY.scale =  e.target.value;  save(); });
   syncKeyTopbar();
 
-  // BPM
-  document.getElementById('bpm').addEventListener('change', e => {
-    TR.bpm = clamp(+e.target.value|0 || 120, 20, 300);
-    e.target.value = TR.bpm;
-    updateClockDisplay();
-    save();
-  });
-
   // Play
   document.getElementById('play').addEventListener('click', togglePlay);
 
   // External clock + clock out
   document.getElementById('extClock').addEventListener('change', e => {
     MIDI.extClockInId = e.target.value;
-    TR.source = e.target.value ? 'external' : 'internal';
-    if (TR.playing) stopTransport();
-    updateClockDisplay();
-    setStatus('clock source: ' + TR.source);
+    setStatus(e.target.value ? 'EXT CLK device: ' + e.target.selectedOptions[0].textContent : 'EXT CLK device cleared');
     save();
   });
   document.getElementById('clkOut').addEventListener('change', e => {
