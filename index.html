@@ -120,11 +120,8 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
 .module.EUCLID .ring circle.rest { fill: var(--bg); stroke: var(--line); stroke-width: 1; }
 .module.EUCLID .ring circle.cur { stroke: #fff; stroke-width: 2.5; filter: drop-shadow(0 0 4px #fff); }
 
-.module.KEY .keydisp { text-align:center; font-size: 16px; letter-spacing: 0.1em; color: var(--scale); padding: 6px 0; }
+.scaledisp { text-align:center; font-size: 14px; letter-spacing: 0.1em; color: var(--scale); padding: 4px 0; }
 
-.module.MIDIOUT .stat { color: var(--dim); font-size: 10px; padding: 4px 0; }
-.module.MIDIOUT .stat.ok { color: var(--good); }
-.module.MIDIOUT .stat.err { color: var(--bad); }
 .module.MIDIOUT .activity { display:inline-block; width:8px;height:8px;border-radius:50%; background:var(--bg2); margin-left:6px; transition: background 0.1s; }
 .module.MIDIOUT .activity.on { background: var(--good); box-shadow: 0 0 8px var(--good); }
 
@@ -152,14 +149,6 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
     <button :class="['play', { on: transport.playing }]" @click="togglePlay">
       {{ transport.playing ? '■ STOP' : '▶ PLAY' }}
     </button>
-    <div class="sep"></div>
-    <label>KEY</label>
-    <select v-model.number="key.root">
-      <option v-for="(r,i) in ROOTS" :key="i" :value="i">{{ r }}</option>
-    </select>
-    <select v-model="key.scale">
-      <option v-for="s in Object.keys(SCALES)" :key="s" :value="s">{{ s }}</option>
-    </select>
     <div class="sep"></div>
     <label>CLK OUT</label>
     <select v-model="midi.clockOutId" title="Send MIDI clock to this device">
@@ -377,8 +366,8 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
                 @head-pointerdown="$emit('head-pointerdown', $event)"
                 @port-pointerdown="$emit('port-pointerdown', $event)"
                 @remove="$emit('remove')">
-    <div class="row" style="color:var(--dim)">snaps pitch to KEY</div>
-    <div class="row" style="color:var(--dim);font-size:10px">(patch purple <b>scl</b> to override)</div>
+    <div class="scaledisp">{{ scaleLabel }}</div>
+    <div class="row" style="color:var(--dim);font-size:10px">patch purple <b>scl</b> to override</div>
   </module-frame>
 </template>
 
@@ -399,7 +388,8 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
       <label>VOICES</label><input class="knob" type="number" min="1" max="5" v-model.number="module.params.voices"    @change="$emit('change')">
       <label>INV</label>   <input class="knob" type="number" min="0" max="4" v-model.number="module.params.inversion" @change="$emit('change')">
     </div>
-    <div class="row" style="color:var(--dim);font-size:10px">uses KEY (patch <span style="color:var(--scale)">scl</span> to override)</div>
+    <div class="scaledisp">{{ scaleLabel }}</div>
+    <div class="row" style="color:var(--dim);font-size:10px">patch <span style="color:var(--scale)">scl</span> to override</div>
   </module-frame>
 </template>
 
@@ -411,32 +401,6 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
     <div class="row">
       <label>PROB %</label>
       <input class="knob" type="number" min="0" max="100" v-model.number="module.params.prob" @change="$emit('change')">
-    </div>
-  </module-frame>
-</template>
-
-<template id="tmpl-key">
-  <module-frame :module="module" title="KEY" :inputs="[]" :outputs="[{name:'scl',type:'scale'}]"
-                @head-pointerdown="$emit('head-pointerdown', $event)"
-                @port-pointerdown="$emit('port-pointerdown', $event)"
-                @remove="$emit('remove')">
-    <div class="keydisp">{{ ROOTS[module.params.root] }} {{ module.params.scale }}</div>
-    <div class="row">
-      <label>ROOT</label>
-      <select v-model.number="module.params.root" @change="onChange">
-        <option v-for="(r,i) in ROOTS" :key="i" :value="i">{{ r }}</option>
-      </select>
-    </div>
-    <div class="row">
-      <label>SCALE</label>
-      <select v-model="module.params.scale" @change="onChange">
-        <option v-for="s in Object.keys(SCALES)" :key="s" :value="s">{{ s }}</option>
-      </select>
-    </div>
-    <div class="row">
-      <label>GLOBAL</label>
-      <input type="checkbox" v-model="module.params.broadcast" @change="onChange">
-      <span style="color:var(--dim);font-size:10px">broadcast as KEY</span>
     </div>
   </module-frame>
 </template>
@@ -458,7 +422,6 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
       <input class="knob" type="number" min="1" max="16" v-model.number="module.params.channel" @change="$emit('change')">
       <span :class="['activity', { on: module.state.activity }]"></span>
     </div>
-    <div :class="['stat', statusClass]">{{ statusText }}</div>
   </module-frame>
 </template>
 
@@ -486,7 +449,7 @@ const LOOKAHEAD_SEC = 0.035;
 const TICKS_PER_PULSE = 6;
 const SIGNAL_COLORS = { clock: '#ffffff', note: '#ffd84a', scale: '#c084ff' };
 const CLOCK_BPMS = [60, 80, 90, 100, 110, 120, 128, 140, 160, 180];
-const PALETTE = ['CLOCK','DIV','STEP','EUCLID','TRANSPOSE','QUANT','CHORD','CHANCE','KEY','MIDIOUT'];
+const PALETTE = ['CLOCK','DIV','STEP','EUCLID','TRANSPOSE','QUANT','CHORD','CHANCE','MIDIOUT'];
 const SAVE_KEY = 'lambda-seq-v1:' + location.pathname;
 const HELP_KEY = 'lambda-seq-help-seen:' + location.pathname;
 
@@ -616,7 +579,7 @@ const TYPES = {
     onInput(ctx, m, port, ev) {
       if (port === 'scl' && ev.kind === 'scale') { m.state.localScale = ev; return; }
       if (port !== 'in' || ev.kind !== 'note') return;
-      const scl = m.state.localScale || { root: ctx.key.root, scale: ctx.key.scale };
+      const scl = m.state.localScale || { root: 0, scale: 'major' };
       const arr = SCALES[scl.scale] || SCALES.chromatic;
       ctx.emit(m, 'out', { ...ev, pitch: quantize(ev.pitch, scl.root, arr) });
     },
@@ -627,7 +590,7 @@ const TYPES = {
     onInput(ctx, m, port, ev) {
       if (port === 'scl' && ev.kind === 'scale') { m.state.localScale = ev; return; }
       if (port !== 'in' || ev.kind !== 'note') return;
-      const scl = m.state.localScale || { root: ctx.key.root, scale: ctx.key.scale };
+      const scl = m.state.localScale || { root: 0, scale: 'major' };
       const notes = buildChord(ev.pitch, scl.root, scl.scale, m.params.type, m.params.voices, m.params.inversion);
       for (const n of notes) ctx.emit(m, 'out', { ...ev, pitch: n });
     },
@@ -639,11 +602,6 @@ const TYPES = {
       if (port !== 'in' || ev.kind !== 'note') return;
       if (Math.random() * 100 < m.params.prob) ctx.emit(m, 'out', ev);
     },
-  },
-  KEY: {
-    inputs: [], outputs: [{name:'scl',type:'scale'}],
-    defaults: () => ({ root: 0, scale: 'major', broadcast: true }),
-    onInput() {},
   },
   MIDIOUT: {
     inputs: [{name:'in',type:'note'}], outputs: [],
@@ -674,7 +632,6 @@ const TYPES = {
 // =============================================================
 const DEFAULT_PATCH = {
   bpm: 120,
-  key: { root: 0, scale: 'major' },
   clockOutId: '',
   source: 'external',
   modules: [
@@ -800,55 +757,28 @@ const ModuleEuclid = defineComponent({
 
 const ModuleDiv      = defineComponent({ template:'#tmpl-div',      components:{ModuleFrame}, props: baseProps, emits: baseEmits });
 const ModuleTranspose= defineComponent({ template:'#tmpl-transpose',components:{ModuleFrame}, props: baseProps, emits: baseEmits });
-const ModuleQuant    = defineComponent({ template:'#tmpl-quant',    components:{ModuleFrame}, props: baseProps, emits: baseEmits });
-const ModuleChord    = defineComponent({ template:'#tmpl-chord',    components:{ModuleFrame}, props: baseProps, emits: baseEmits });
-const ModuleChance   = defineComponent({ template:'#tmpl-chance',   components:{ModuleFrame}, props: baseProps, emits: baseEmits });
-
-const ModuleKey = defineComponent({
-  template: '#tmpl-key',
-  components: { ModuleFrame },
-  props: baseProps, emits: baseEmits,
-  data() { return { ROOTS, SCALES }; },
-  methods: {
-    onChange() {
-      if (this.module.params.broadcast) {
-        this.$root.key.root = this.module.params.root;
-        this.$root.key.scale = this.module.params.scale;
-      }
-      this.$root.emit(this.module, 'scl', { kind: 'scale', root: this.module.params.root, scale: this.module.params.scale });
-      this.$emit('change');
+const scaleLabelMixin = {
+  computed: {
+    scaleLabel() {
+      const s = this.module.state.localScale || { root: 0, scale: 'major' };
+      return `${ROOTS[s.root] || 'C'} ${s.scale}`;
     },
   },
-  mounted() {
-    if (this.module.params.broadcast) {
-      this.$root.key.root = this.module.params.root;
-      this.$root.key.scale = this.module.params.scale;
-    }
-  },
-});
+};
+const ModuleQuant    = defineComponent({ template:'#tmpl-quant',    components:{ModuleFrame}, props: baseProps, emits: baseEmits, mixins: [scaleLabelMixin] });
+const ModuleChord    = defineComponent({ template:'#tmpl-chord',    components:{ModuleFrame}, props: baseProps, emits: baseEmits, mixins: [scaleLabelMixin] });
+const ModuleChance   = defineComponent({ template:'#tmpl-chance',   components:{ModuleFrame}, props: baseProps, emits: baseEmits });
 
 const ModuleMidiOut = defineComponent({
   template: '#tmpl-midiout',
   components: { ModuleFrame },
   props: baseProps, emits: baseEmits,
-  computed: {
-    statusText() {
-      const o = this.midiOutputs.get(this.module.params.deviceId);
-      if (o) return `→ ${o.name} · ch ${this.module.params.channel}`;
-      return this.module.params.deviceId ? 'device unavailable' : 'pick a device';
-    },
-    statusClass() {
-      const o = this.midiOutputs.get(this.module.params.deviceId);
-      if (o) return 'ok';
-      return this.module.params.deviceId ? 'err' : '';
-    },
-  },
 });
 
 const COMPONENT_FOR = {
   CLOCK: ModuleClock, STEP: ModuleStep, EUCLID: ModuleEuclid, DIV: ModuleDiv,
   TRANSPOSE: ModuleTranspose, QUANT: ModuleQuant, CHORD: ModuleChord,
-  CHANCE: ModuleChance, KEY: ModuleKey, MIDIOUT: ModuleMidiOut,
+  CHANCE: ModuleChance, MIDIOUT: ModuleMidiOut,
 };
 
 // =============================================================
@@ -861,7 +791,6 @@ const App = {
     return {
       ROOTS, SCALES, SIGNAL_COLORS, PALETTE,
       transport: reactive({ playing: false, bpm: 120, source: 'internal', nextTick: 0, tickIdx: 0, extClockCount: 0 }),
-      key:   reactive({ root: 0, scale: 'major' }),
       midi:  shallowReactive({ access: null, outputs: new Map(), inputs: new Map(), clockOutId: '' }),
       modules: reactive([]),
       cables:  reactive([]),
@@ -1095,7 +1024,6 @@ const App = {
     serialize() {
       return {
         bpm: this.transport.bpm,
-        key: { ...this.key },
         clockOutId: this.midi.clockOutId,
         source: this.transport.source,
         modules: this.modules.map(m => ({ id: m.id, type: m.type, x: m.x, y: m.y, params: JSON.parse(JSON.stringify(m.params)) })),
@@ -1117,9 +1045,15 @@ const App = {
       this.selectedCableIdx = null;
       if (!data) return;
       this.transport.bpm = data.bpm || 120;
-      if (data.key) { this.key.root = data.key.root || 0; this.key.scale = data.key.scale || 'major'; }
-      for (const md of (data.modules || [])) this.addModule(md.type, md.x, md.y, { id: md.id, params: md.params });
-      for (const c of (data.cables || [])) this.cables.push({ from: { ...c.from }, to: { ...c.to }, type: c.type });
+      const droppedIds = new Set();
+      for (const md of (data.modules || [])) {
+        if (md.type === 'KEY') { droppedIds.add(md.id); continue; } // legacy: KEY module no longer exists
+        this.addModule(md.type, md.x, md.y, { id: md.id, params: md.params });
+      }
+      for (const c of (data.cables || [])) {
+        if (droppedIds.has(c.from.mid) || droppedIds.has(c.to.mid)) continue;
+        this.cables.push({ from: { ...c.from }, to: { ...c.to }, type: c.type });
+      }
       if (data.clockOutId)   this.midi.clockOutId = data.clockOutId;
       // Back-compat: legacy patches stored EXT device globally; migrate onto the CLOCK module.
       if (data.extClockInId) {
@@ -1249,8 +1183,6 @@ const App = {
 
   watch: {
     'midi.clockOutId'(v)   { this.setStatus(v ? 'MIDI clock out enabled' : 'MIDI clock out off'); this.save(); },
-    'key.root'() { this.save(); },
-    'key.scale'() { this.save(); },
   },
 
   mounted() {
