@@ -740,16 +740,18 @@ const ModuleClock = defineComponent({
       },
     },
   },
-  methods: {
-    onSrcChange() { this.$emit('change'); this.$root.applyClockParams(this.module); },
-    flash() {
+  watch: {
+    // Flash whenever the master pulse fires (works for both internal scheduler and ext clock)
+    'transport.tickIdx'() {
+      if (!this.transport.playing && this.transport.source !== 'external') return;
       this.flashing = true;
       clearTimeout(this._ft);
       this._ft = setTimeout(() => { this.flashing = false; }, 60);
     },
   },
-  mounted() { this.module._comp = this; },
-  beforeUnmount() { if (this.module._comp === this) this.module._comp = null; },
+  methods: {
+    onSrcChange() { this.$emit('change'); this.$root.applyClockParams(this.module); },
+  },
 });
 
 const ModuleStep = defineComponent({
@@ -981,8 +983,8 @@ const App = {
     },
 
     fireMasterPulse(t, idx) {
+      // tickIdx already incremented by caller; CLOCK components flash via a watcher on transport.tickIdx
       for (const m of this.modules) if (m.type === 'CLOCK') {
-        if (m._comp && m._comp.flash) m._comp.flash();
         this.emit(m, 'clk', { kind: 'clock', time: t, idx });
       }
     },
@@ -1148,30 +1150,19 @@ const App = {
     portCenter(mid, dir, port) {
       const mod = this.modules.find(x => x.id === mid);
       if (!mod) return null;
-      // find the rendered module DOM node by walking children of stage
       const stage = this.$refs.stage;
       if (!stage) return null;
-      const modEls = stage.querySelectorAll('.module');
-      let target = null;
-      for (const el of modEls) {
-        // match by header id text (CLOCK #1 etc.) — simpler: use a data attr written below
-      }
-      // We attach data-mid via template? Simpler: find the i-th .module matching position.
-      // Use _comp ref if available, else fall back to position match.
-      const compInstance = mod._comp || null;
-      let el = compInstance && compInstance.$el ? compInstance.$el : null;
-      if (!el) {
-        // fall back: find module element by left/top match
-        for (const e of modEls) {
-          if (parseFloat(e.style.left) === mod.x && parseFloat(e.style.top) === mod.y) { el = e; break; }
-        }
+      // Find the module's DOM element by matching position (modules carry no id in the rendered DOM).
+      let el = null;
+      for (const e of stage.querySelectorAll('.module')) {
+        if (parseFloat(e.style.left) === mod.x && parseFloat(e.style.top) === mod.y) { el = e; break; }
       }
       if (!el) return null;
       const portEl = el.querySelector(`.port[data-port="${port}"][data-dir="${dir}"]`) ||
                      [...el.querySelectorAll('.port')].find(p => p.querySelector('.lbl')?.textContent === port && p.parentElement.classList.contains(dir));
       if (!portEl) return null;
-      const j = portEl.querySelector('.jack');
-      const r = j.getBoundingClientRect();
+      const jack = portEl.querySelector('.jack');
+      const r = jack.getBoundingClientRect();
       const sr = stage.getBoundingClientRect();
       return { x: r.left + r.width / 2 - sr.left, y: r.top + r.height / 2 - sr.top };
     },
