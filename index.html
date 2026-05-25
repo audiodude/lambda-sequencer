@@ -161,11 +161,6 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
       <option v-for="s in Object.keys(SCALES)" :key="s" :value="s">{{ s }}</option>
     </select>
     <div class="sep"></div>
-    <label>EXT CLK</label>
-    <select v-model="midi.extClockInId" title="External MIDI clock input">
-      <option value="">internal</option>
-      <option v-for="[id, p] in midiInputs" :key="id" :value="id">{{ p.name }}</option>
-    </select>
     <label>CLK OUT</label>
     <select v-model="midi.clockOutId" title="Send MIDI clock to this device">
       <option value="">none</option>
@@ -206,6 +201,7 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
                :module="m"
                :transport="transport"
                :midi-outputs="midiOutputs"
+               :midi-inputs="midiInputs"
                @head-pointerdown="beginNodeDrag(m, $event)"
                @port-pointerdown="beginPatch(m, $event.port, $event.dir, $event.type, $event.event)"
                @remove="removeModule(m.id)"
@@ -276,9 +272,17 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
                 @port-pointerdown="$emit('port-pointerdown', $event)"
                 @remove="$emit('remove')">
     <div class="row">
-      <label>SRC</label>
-      <select v-model="srcSel" @change="onSrcChange">
-        <option value="ext">EXT</option>
+      <label><input type="radio" value="internal" v-model="modeSel" @change="onModeChange"> BPM</label>
+      <label style="margin-left:8px"><input type="radio" value="ext" v-model="modeSel" @change="onModeChange"> EXT</label>
+    </div>
+    <div class="row" v-if="module.params.mode === 'ext'">
+      <select v-model="module.params.extInId" @change="onSrcChange" title="External MIDI clock input" style="flex:1">
+        <option value="">(no device)</option>
+        <option v-for="[id, p] in midiInputs" :key="id" :value="id">{{ p.name }}</option>
+      </select>
+    </div>
+    <div class="row" v-else>
+      <select v-model.number="module.params.bpm" @change="onSrcChange" style="flex:1">
         <option v-for="b in CLOCK_BPMS" :key="b" :value="b">{{ b }} BPM</option>
       </select>
     </div>
@@ -550,7 +554,7 @@ function buildChord(pitch, root, scaleName, type, voices, inversion) {
 const TYPES = {
   CLOCK: {
     inputs: [], outputs: [{name:'clk',type:'clock'}],
-    defaults: () => ({ mode: 'internal', bpm: 120 }),
+    defaults: () => ({ mode: 'internal', bpm: 120, extInId: '' }),
     onInput() {},
   },
   STEP: {
@@ -723,6 +727,7 @@ const baseProps = {
   module:      { type: Object, required: true },
   transport:   { type: Object, required: true },
   midiOutputs: { type: Object, default: () => new Map() },
+  midiInputs:  { type: Object, default: () => new Map() },
 };
 const baseEmits = ['head-pointerdown', 'port-pointerdown', 'remove', 'change', 'reroute'];
 
@@ -732,12 +737,9 @@ const ModuleClock = defineComponent({
   props: baseProps, emits: baseEmits,
   data() { return { flashing: false, CLOCK_BPMS }; },
   computed: {
-    srcSel: {
-      get() { return this.module.params.mode === 'ext' ? 'ext' : this.module.params.bpm; },
-      set(v) {
-        if (v === 'ext') this.module.params.mode = 'ext';
-        else { this.module.params.mode = 'internal'; this.module.params.bpm = +v; }
-      },
+    modeSel: {
+      get() { return this.module.params.mode === 'ext' ? 'ext' : 'internal'; },
+      set(v) { this.module.params.mode = v; },
     },
   },
   watch: {
@@ -753,6 +755,7 @@ const ModuleClock = defineComponent({
   },
   methods: {
     onSrcChange() { this.$emit('change'); this.$root.applyClockParams(this.module); },
+    onModeChange() { this.$root.stopTransport(); this.onSrcChange(); },
   },
 });
 
@@ -858,7 +861,7 @@ const App = {
       ROOTS, SCALES, SIGNAL_COLORS, PALETTE,
       transport: reactive({ playing: false, bpm: 120, source: 'internal', nextTick: 0, tickIdx: 0, extClockCount: 0 }),
       key:   reactive({ root: 0, scale: 'major' }),
-      midi:  shallowReactive({ access: null, outputs: new Map(), inputs: new Map(), extClockInId: '', clockOutId: '' }),
+      midi:  shallowReactive({ access: null, outputs: new Map(), inputs: new Map(), clockOutId: '' }),
       modules: reactive([]),
       cables:  reactive([]),
       nextId: 1,
@@ -942,7 +945,7 @@ const App = {
     applyClockParams(m) {
       if (m.params.mode === 'ext') {
         this.transport.source = 'external';
-        if (!this.midi.extClockInId) this.setStatus('CLOCK set to EXT but no EXT CLK device selected', true);
+        if (!m.params.extInId) this.setStatus('CLOCK set to EXT but no device selected', true);
       } else {
         this.transport.source = 'internal';
         this.transport.bpm = clamp(+m.params.bpm || 120, 20, 300);
@@ -1017,14 +1020,17 @@ const App = {
       this.midi.inputs  = new Map([...this.midi.access.inputs.entries()]);
       for (const i of this.midi.inputs.values()) i.onmidimessage = (ev) => this.onMIDIMessage(ev);
       // reconcile selected device ids
-      if (this.midi.extClockInId && !this.midi.inputs.has(this.midi.extClockInId))  this.midi.extClockInId = '';
+      const clk = this.modules.find(m => m.type === 'CLOCK');
+      if (clk && clk.params.extInId && !this.midi.inputs.has(clk.params.extInId)) clk.params.extInId = '';
       if (this.midi.clockOutId   && !this.midi.outputs.has(this.midi.clockOutId))   this.midi.clockOutId   = '';
       this.rerouteVersion++;
     },
 
     onMIDIMessage(ev) {
       if (this.transport.source !== 'external') return;
-      if (ev.target && ev.target.id !== this.midi.extClockInId) return;
+      const clk = this.modules.find(m => m.type === 'CLOCK');
+      if (!clk || !clk.params.extInId) return;
+      if (ev.target && ev.target.id !== clk.params.extInId) return;
       const s = ev.data[0];
       if      (s === 0xf8) this.onExtClockTick();
       else if (s === 0xfa) { this.transport.extClockCount = 0; this.startTransport(true); }
@@ -1089,7 +1095,6 @@ const App = {
       return {
         bpm: this.transport.bpm,
         key: { ...this.key },
-        extClockInId: this.midi.extClockInId,
         clockOutId: this.midi.clockOutId,
         source: this.transport.source,
         modules: this.modules.map(m => ({ id: m.id, type: m.type, x: m.x, y: m.y, params: JSON.parse(JSON.stringify(m.params)) })),
@@ -1115,7 +1120,11 @@ const App = {
       for (const md of (data.modules || [])) this.addModule(md.type, md.x, md.y, { id: md.id, params: md.params });
       for (const c of (data.cables || [])) this.cables.push({ from: { ...c.from }, to: { ...c.to }, type: c.type });
       if (data.clockOutId)   this.midi.clockOutId = data.clockOutId;
-      if (data.extClockInId) this.midi.extClockInId = data.extClockInId;
+      // Back-compat: legacy patches stored EXT device globally; migrate onto the CLOCK module.
+      if (data.extClockInId) {
+        const clk = this.modules.find(m => m.type === 'CLOCK');
+        if (clk) clk.params.extInId = data.extClockInId;
+      }
       nextTick(() => this.rerouteVersion++);
     },
 
@@ -1238,7 +1247,6 @@ const App = {
   },
 
   watch: {
-    'midi.extClockInId'(v) { this.setStatus(v ? 'EXT CLK device set' : 'EXT CLK device cleared'); this.save(); },
     'midi.clockOutId'(v)   { this.setStatus(v ? 'MIDI clock out enabled' : 'MIDI clock out off'); this.save(); },
     'key.root'() { this.save(); },
     'key.scale'() { this.save(); },
