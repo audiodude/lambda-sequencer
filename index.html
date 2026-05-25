@@ -526,13 +526,15 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
       </select>
     </div>
     <div class="row">
-      <label>VOICES</label><num-knob :min="1" :max="5" v-model.number="module.params.voices"    @change="$emit('change')"></num-knob>
+      <label>VOICES</label><num-knob :min="1" :max="5" :flash="module.state.voicesFlash" v-model.number="module.params.voices" @change="$emit('change')"></num-knob>
       <label>INV</label>   <num-knob :min="0" :max="4" v-model.number="module.params.inversion" @change="$emit('change')"></num-knob>
     </div>
     <div class="scaledisp">{{ scaleLabel }}</div>
     <template #help>
       Builds a chord from the incoming pitch, using <b>TYPE</b> as the chord
-      shape and <b>VOICES</b>/<b>INV</b> for the voicing.<br>
+      shape and <b>VOICES</b>/<b>INV</b> for the voicing. Picking a richer
+      type (7th, 9th) bumps <b>VOICES</b> up so the chord's character is
+      audible.<br>
       Defaults to <b>C major</b>; patch <span class="scl">scl</span> to override.
     </template>
   </module-frame>
@@ -1042,7 +1044,23 @@ const scaleLabelMixin = {
   },
 };
 const ModuleQuant    = defineComponent({ template:'#tmpl-quant',    components:{ModuleFrame}, props: baseProps, emits: baseEmits, mixins: [scaleLabelMixin] });
-const ModuleChord    = defineComponent({ template:'#tmpl-chord',    components:{ModuleFrame}, props: baseProps, emits: baseEmits, mixins: [scaleLabelMixin] });
+const CHORD_RECIPE_LEN = { triad: 3, '7th': 4, sus2: 3, sus4: 3, '9th': 5 };
+const ModuleChord = defineComponent({
+  template: '#tmpl-chord', components: { ModuleFrame },
+  props: baseProps, emits: baseEmits, mixins: [scaleLabelMixin],
+  watch: {
+    'module.params.type'(t) {
+      const need = CHORD_RECIPE_LEN[t] || 3;
+      if (this.module.params.voices < need) {
+        this.module.params.voices = need;
+        this.module.state.voicesFlash = true;
+        clearTimeout(this.module.state._voicesFlashT);
+        this.module.state._voicesFlashT = setTimeout(() => { this.module.state.voicesFlash = false; }, 400);
+      }
+      this.$emit('change');
+    },
+  },
+});
 const ModuleChance   = defineComponent({ template:'#tmpl-chance',   components:{ModuleFrame}, props: baseProps, emits: baseEmits });
 
 const ModuleScl = defineComponent({
