@@ -675,9 +675,11 @@ const TYPES = {
 const DEFAULT_PATCH = {
   bpm: 120,
   key: { root: 0, scale: 'major' },
+  clockOutId: '',
+  source: 'external',
   modules: [
-    { id: 1, type: 'CLOCK',   x:  20, y:  40, params: { mode: 'internal', bpm: 120 } },
-    { id: 2, type: 'STEP',    x: 260, y:  40, params: {
+    { id: 1, type: 'CLOCK',   x:  20,          y:  40,          params: { mode: 'ext', bpm: 120, extInId: '-325153073' } },
+    { id: 2, type: 'STEP',    x: 260,          y:  40,          params: {
         steps: [
           { on: true,  pitch: 60, vel: 110 }, { on: false, pitch: 60, vel: 100 },
           { on: true,  pitch: 67, vel:  90 }, { on: false, pitch: 60, vel: 100 },
@@ -690,17 +692,17 @@ const DEFAULT_PATCH = {
         ],
         div: 1, gateLen: 0.5, len: 16,
     } },
-    { id: 3, type: 'QUANT',   x: 685, y: 229, params: {} },
-    { id: 4, type: 'MIDIOUT', x: 940, y: 229, params: { deviceId: '', channel: 1 } },
-    { id: 5, type: 'EUCLID',  x:  18, y: 228, params: { hits: 5, steps: 16, rot: 0, pitch: 36, vel: 110, gateLen: 0.5, div: 1 } },
-    { id: 6, type: 'MIDIOUT', x: 388, y: 227, params: { deviceId: '', channel: 2 } },
+    { id: 3, type: 'QUANT',   x: 696.68359375, y: 201.98828125, params: {} },
+    { id: 4, type: 'MIDIOUT', x: 955.65625,    y: 201.16015625, params: { deviceId: '464023706', channel: 1 } },
+    { id: 5, type: 'EUCLID',  x:  21.9921875,  y: 268.94921875, params: { hits: 5, steps: 16, rot: 0, pitch: 36, vel: 110, gateLen: 0.5, div: 1 } },
+    { id: 6, type: 'MIDIOUT', x: 400.21875,    y: 214.23046875, params: { deviceId: '464023706', channel: 2 } },
   ],
   cables: [
     { from: { mid: 1, port: 'clk'  }, to: { mid: 2, port: 'clk' }, type: 'clock' },
-    { from: { mid: 2, port: 'note' }, to: { mid: 3, port: 'in'  }, type: 'note'  },
-    { from: { mid: 3, port: 'out'  }, to: { mid: 4, port: 'in'  }, type: 'note'  },
     { from: { mid: 1, port: 'clk'  }, to: { mid: 5, port: 'clk' }, type: 'clock' },
+    { from: { mid: 3, port: 'out'  }, to: { mid: 4, port: 'in'  }, type: 'note'  },
     { from: { mid: 5, port: 'note' }, to: { mid: 6, port: 'in'  }, type: 'note'  },
+    { from: { mid: 2, port: 'note' }, to: { mid: 3, port: 'in'  }, type: 'note'  },
   ],
 };
 
