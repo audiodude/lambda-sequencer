@@ -150,14 +150,14 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
 .module .knob .spin button + button { border-top: 1px solid var(--line); }
 .module .knob .spin svg { width: 8px; height: 8px; display: block; }
 
-.module.CLOCK .modeseg { display: flex; width: 100%; background: var(--bg2); border: 1px solid var(--line); border-radius: 4px; padding: 2px; gap: 2px; }
-.module.CLOCK .modeseg button {
+.module .modeseg { display: flex; width: 100%; background: var(--bg2); border: 1px solid var(--line); border-radius: 4px; padding: 2px; gap: 2px; }
+.module .modeseg button {
   flex: 1; background: transparent; color: var(--dim); border: 0; padding: 5px 10px;
   font: inherit; font-size: 11px; letter-spacing: 0.12em; cursor: pointer; border-radius: 3px;
   transition: background 0.1s, color 0.1s;
 }
-.module.CLOCK .modeseg button:hover { color: var(--text); }
-.module.CLOCK .modeseg button.on { background: var(--panel-hi); color: var(--note); box-shadow: inset 0 0 0 1px var(--note); }
+.module .modeseg button:hover { color: var(--text); }
+.module .modeseg button.on { background: var(--panel-hi); color: var(--note); box-shadow: inset 0 0 0 1px var(--note); }
 
 .module.CLOCK .big { font-size: 26px; text-align:center; padding: 10px 0 6px; letter-spacing: 0.1em; color: var(--clock); transition: color 0.05s, text-shadow 0.05s; }
 .module.CLOCK .big.flash { color: var(--accent); text-shadow: 0 0 12px var(--accent); }
@@ -451,9 +451,16 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
                 @head-pointerdown="$emit('head-pointerdown', $event)"
                 @port-pointerdown="$emit('port-pointerdown', $event)"
                 @remove="$emit('remove')" @duplicate="$emit('duplicate')">
+    <div class="modeseg">
+      <button type="button" :class="{ on: module.params.mode === 'snap' }"
+              @click="module.params.mode = 'snap'; $emit('change')">SNAP</button>
+      <button type="button" :class="{ on: module.params.mode === 'filter' }"
+              @click="module.params.mode = 'filter'; $emit('change')">FILTER</button>
+    </div>
     <div class="scaledisp">{{ scaleLabel }}</div>
     <template #help>
-      Snaps incoming pitch to the active scale.<br>
+      <b>SNAP</b>: forces every incoming pitch to the nearest scale degree.<br>
+      <b>FILTER</b>: passes notes through only if they are already in the scale.<br>
       Defaults to <b>C major</b>; patch <span class="scl">scl</span> to override.
     </template>
   </module-frame>
@@ -693,13 +700,19 @@ const TYPES = {
   },
   QUANT: {
     inputs: [{name:'in',type:'note'},{name:'scl',type:'scale'}], outputs: [{name:'out',type:'note'}],
-    defaults: () => ({}),
+    defaults: () => ({ mode: 'snap' }),
     onInput(ctx, m, port, ev) {
       if (port === 'scl' && ev.kind === 'scale') { m.state.localScale = ev; return; }
       if (port !== 'in' || ev.kind !== 'note') return;
       const scl = m.state.localScale || { root: 0, scale: 'major' };
       const arr = SCALES[scl.scale] || SCALES.chromatic;
-      ctx.emit(m, 'out', { ...ev, pitch: quantize(ev.pitch, scl.root, arr) });
+      if (m.params.mode === 'filter') {
+        const pc = ((ev.pitch - scl.root) % 12 + 12) % 12;
+        if (!arr.includes(pc)) return;
+        ctx.emit(m, 'out', ev);
+      } else {
+        ctx.emit(m, 'out', { ...ev, pitch: quantize(ev.pitch, scl.root, arr) });
+      }
     },
   },
   CHORD: {
