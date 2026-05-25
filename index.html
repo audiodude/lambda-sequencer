@@ -744,9 +744,11 @@ const ModuleClock = defineComponent({
     // Flash whenever the master pulse fires (works for both internal scheduler and ext clock)
     'transport.tickIdx'() {
       if (!this.transport.playing && this.transport.source !== 'external') return;
+      // Flash on the beat (every 4th 1/16 pulse), not every pulse — readable at any BPM.
+      if (this.transport.tickIdx % 4 !== 0) return;
       this.flashing = true;
       clearTimeout(this._ft);
-      this._ft = setTimeout(() => { this.flashing = false; }, 60);
+      this._ft = setTimeout(() => { this.flashing = false; }, 80);
     },
   },
   methods: {
