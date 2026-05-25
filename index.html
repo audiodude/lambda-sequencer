@@ -70,6 +70,7 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
   user-select: none;
 }
 .module .head { display:flex; justify-content:space-between; align-items:center; padding: 6px 10px; background: var(--panel-hi); border-radius: 8px 8px 0 0; cursor: move; font-weight:700; letter-spacing:0.14em; font-size:11px; }
+.module .head .title { opacity: 0.75; }
 .module .head .x { color: var(--dim); cursor: pointer; padding: 0 4px; font-size:14px; }
 .module .head .x:hover { color: var(--bad); }
 .module .ports-row { display:flex; justify-content: space-between; padding: 6px 8px; border-bottom: 1px solid var(--line); }
@@ -95,7 +96,41 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
 .module .row { display:flex; align-items:center; gap:6px; margin: 4px 0; flex-wrap: wrap; }
 .module .row label { color: var(--dim); font-size: 10px; letter-spacing: 0.05em; flex: 0 0 auto; min-width: 38px; }
 .module input, .module select { background: var(--bg2); color: var(--text); border: 1px solid var(--line); padding: 2px 4px; font: inherit; border-radius: 3px; }
-.module .knob { width: 56px; text-align:center; }
+.module .knob {
+  display: inline-flex; align-items: stretch;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 4px;
+  transition: border-color 0.1s, box-shadow 0.1s; overflow: hidden;
+}
+.module .knob:hover { border-color: var(--panel-hi); }
+.module .knob:focus-within { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.module .knob input {
+  width: 52px; text-align: center;
+  padding: 6px 4px; font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums;
+  color: var(--text); background: transparent; border: 0; border-radius: 0;
+  -moz-appearance: textfield;
+}
+.module .knob input:focus { outline: none; }
+.module .knob input::-webkit-outer-spin-button,
+.module .knob input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.module .knob .spin { display: flex; flex-direction: column; border-left: 1px solid var(--line); }
+.module .knob .spin button {
+  flex: 1; width: 18px; padding: 0; background: var(--bg2); color: var(--dim);
+  border: 0; cursor: pointer; font-size: 9px; line-height: 1; display:flex; align-items:center; justify-content:center;
+  transition: background 0.08s, color 0.08s;
+}
+.module .knob .spin button:hover { background: var(--panel-hi); color: var(--accent); }
+.module .knob .spin button:active { background: var(--accent); color: var(--bg); }
+.module .knob .spin button + button { border-top: 1px solid var(--line); }
+.module .knob .spin svg { width: 8px; height: 8px; display: block; }
+
+.module.CLOCK .modeseg { display: flex; width: 100%; background: var(--bg2); border: 1px solid var(--line); border-radius: 4px; padding: 2px; gap: 2px; }
+.module.CLOCK .modeseg button {
+  flex: 1; background: transparent; color: var(--dim); border: 0; padding: 5px 10px;
+  font: inherit; font-size: 11px; letter-spacing: 0.12em; cursor: pointer; border-radius: 3px;
+  transition: background 0.1s, color 0.1s;
+}
+.module.CLOCK .modeseg button:hover { color: var(--text); }
+.module.CLOCK .modeseg button.on { background: var(--panel-hi); color: var(--note); box-shadow: inset 0 0 0 1px var(--note); }
 
 .module.CLOCK .big { font-size: 26px; text-align:center; padding: 10px 0 6px; letter-spacing: 0.1em; color: var(--clock); transition: color 0.05s, text-shadow 0.05s; }
 .module.CLOCK .big.flash { color: var(--accent); text-shadow: 0 0 12px var(--accent); }
@@ -149,12 +184,6 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
     <button :class="['play', { on: transport.playing }]" @click="togglePlay">
       {{ transport.playing ? '■ STOP' : '▶ PLAY' }}
     </button>
-    <div class="sep"></div>
-    <label>CLK OUT</label>
-    <select v-model="midi.clockOutId" title="Send MIDI clock to this device">
-      <option value="">none</option>
-      <option v-for="[id, p] in midiOutputs" :key="id" :value="id">{{ p.name }}</option>
-    </select>
     <div class="right">
       <button @click="exportPatch">EXPORT</button>
       <button @click="$refs.fileinput.click()">IMPORT</button>
@@ -223,11 +252,27 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
 <!-- MODULE TEMPLATES — one per type, plain HTML you can edit     -->
 <!-- ============================================================ -->
 
+<template id="tmpl-knob">
+  <div class="knob">
+    <input type="number" :min="min" :max="max" :step="step" :value="modelValue"
+           @input="onInput" @change="$emit('change')" @wheel.prevent="onWheel"
+           @keydown.up.prevent="bump(1)" @keydown.down.prevent="bump(-1)">
+    <div class="spin">
+      <button type="button" tabindex="-1" @pointerdown="hold(1, $event)" aria-label="increment">
+        <svg viewBox="0 0 8 8"><path d="M1 6 L4 2 L7 6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <button type="button" tabindex="-1" @pointerdown="hold(-1, $event)" aria-label="decrement">
+        <svg viewBox="0 0 8 8"><path d="M1 2 L4 6 L7 2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+    </div>
+  </div>
+</template>
+
 <!-- shared frame used by every module type -->
 <template id="tmpl-frame">
   <div :class="['module', module.type]" :data-mid="module.id" :style="{ left: module.x + 'px', top: module.y + 'px' }">
     <div class="head" @pointerdown="$emit('head-pointerdown', $event)">
-      <span>{{ title }} #{{ module.id }}</span>
+      <span class="title">{{ title }} #{{ module.id }}</span>
       <span class="x" title="delete" @click.stop="$emit('remove')">✕</span>
     </div>
     <div class="ports-row">
@@ -259,9 +304,9 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
                 @head-pointerdown="$emit('head-pointerdown', $event)"
                 @port-pointerdown="$emit('port-pointerdown', $event)"
                 @remove="$emit('remove')">
-    <div class="row">
-      <label><input type="radio" value="internal" v-model="modeSel" @change="onModeChange"> BPM</label>
-      <label style="margin-left:8px"><input type="radio" value="ext" v-model="modeSel" @change="onModeChange"> EXT</label>
+    <div class="modeseg">
+      <button type="button" :class="{ on: modeSel === 'internal' }" @click="modeSel = 'internal'; onModeChange()">BPM</button>
+      <button type="button" :class="{ on: modeSel === 'ext' }" @click="modeSel = 'ext'; onModeChange()">EXT</button>
     </div>
     <div class="row" v-if="module.params.mode === 'ext'">
       <select v-model="module.params.extInId" @change="onSrcChange" title="External MIDI clock input" style="flex:1">
@@ -275,7 +320,7 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
       </select>
     </div>
     <div :class="['big', { flash: flashing }]">{{ module.params.mode === 'ext' ? 'EXT' : module.params.bpm + ' BPM' }}</div>
-    <div class="sub">1/16 pulses · {{ module.params.mode === 'ext' ? 'external' : 'internal' }}</div>
+    <div class="sub">1/16 pulses</div>
   </module-frame>
 </template>
 
@@ -301,9 +346,9 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
         <option :value="4">1/4</option>
       </select>
       <label>GATE</label>
-      <input class="knob" type="number" min="0.05" max="1" step="0.05" v-model.number="module.params.gateLen" @change="$emit('change')">
+      <num-knob :min="0.05" :max="1" :step="0.05" v-model.number="module.params.gateLen" @change="$emit('change')"></num-knob>
       <label>LEN</label>
-      <input class="knob" type="number" min="1" max="16" v-model.number="module.params.len" @change="$emit('change')">
+      <num-knob :min="1" :max="16" v-model.number="module.params.len" @change="$emit('change')"></num-knob>
     </div>
   </module-frame>
 </template>
@@ -322,14 +367,14 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
       </svg>
     </div>
     <div class="row">
-      <label>HITS</label>  <input class="knob" type="number" min="0" max="32" v-model.number="module.params.hits"  @change="onChange('hits')">
-      <label>STEPS</label> <input class="knob" type="number" min="1" max="32" v-model.number="module.params.steps" @change="onChange('steps')">
-      <label>ROT</label>   <input class="knob" type="number"                   v-model.number="module.params.rot"   @change="$emit('change')">
+      <label>HITS</label>  <num-knob :min="0" :max="32" v-model.number="module.params.hits"  @change="onChange('hits')"></num-knob>
+      <label>STEPS</label> <num-knob :min="1" :max="32" v-model.number="module.params.steps" @change="onChange('steps')"></num-knob>
+      <label>ROT</label>   <num-knob                    v-model.number="module.params.rot"   @change="$emit('change')"></num-knob>
     </div>
     <div class="row">
-      <label>PITCH</label> <input class="knob" type="number" min="0" max="127" v-model.number="module.params.pitch" @change="$emit('change')">
-      <label>VEL</label>   <input class="knob" type="number" min="1" max="127" v-model.number="module.params.vel"   @change="$emit('change')">
-      <label>GATE</label>  <input class="knob" type="number" min="0.05" max="1" step="0.05" v-model.number="module.params.gateLen" @change="$emit('change')">
+      <label>PITCH</label> <num-knob :min="0" :max="127" v-model.number="module.params.pitch" @change="$emit('change')"></num-knob>
+      <label>VEL</label>   <num-knob :min="1" :max="127" v-model.number="module.params.vel"   @change="$emit('change')"></num-knob>
+      <label>GATE</label>  <num-knob :min="0.05" :max="1" :step="0.05" v-model.number="module.params.gateLen" @change="$emit('change')"></num-knob>
     </div>
   </module-frame>
 </template>
@@ -341,7 +386,7 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
                 @remove="$emit('remove')">
     <div class="row">
       <label>RATIO</label>
-      <input class="knob" type="number" min="1" max="16" v-model.number="module.params.ratio" @change="$emit('change')">
+      <num-knob :min="1" :max="16" v-model.number="module.params.ratio" @change="$emit('change')"></num-knob>
       <span style="color:var(--dim);font-size:10px">÷ N</span>
     </div>
   </module-frame>
@@ -354,7 +399,7 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
                 @remove="$emit('remove')">
     <div class="row">
       <label>SEMIS</label>
-      <input class="knob" type="number" min="-48" max="48" v-model.number="module.params.semis" @change="$emit('change')">
+      <num-knob :min="-48" :max="48" v-model.number="module.params.semis" @change="$emit('change')"></num-knob>
     </div>
   </module-frame>
 </template>
@@ -385,8 +430,8 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
       </select>
     </div>
     <div class="row">
-      <label>VOICES</label><input class="knob" type="number" min="1" max="5" v-model.number="module.params.voices"    @change="$emit('change')">
-      <label>INV</label>   <input class="knob" type="number" min="0" max="4" v-model.number="module.params.inversion" @change="$emit('change')">
+      <label>VOICES</label><num-knob :min="1" :max="5" v-model.number="module.params.voices"    @change="$emit('change')"></num-knob>
+      <label>INV</label>   <num-knob :min="0" :max="4" v-model.number="module.params.inversion" @change="$emit('change')"></num-knob>
     </div>
     <div class="scaledisp">{{ scaleLabel }}</div>
     <div class="row" style="color:var(--dim);font-size:10px">patch <span style="color:var(--scale)">scl</span> to override</div>
@@ -400,7 +445,7 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
                 @remove="$emit('remove')">
     <div class="row">
       <label>PROB %</label>
-      <input class="knob" type="number" min="0" max="100" v-model.number="module.params.prob" @change="$emit('change')">
+      <num-knob :min="0" :max="100" v-model.number="module.params.prob" @change="$emit('change')"></num-knob>
     </div>
   </module-frame>
 </template>
@@ -419,7 +464,7 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
     </div>
     <div class="row">
       <label>CH</label>
-      <input class="knob" type="number" min="1" max="16" v-model.number="module.params.channel" @change="$emit('change')">
+      <num-knob :min="1" :max="16" v-model.number="module.params.channel" @change="$emit('change')"></num-knob>
       <span :class="['activity', { on: module.state.activity }]"></span>
     </div>
   </module-frame>
@@ -632,27 +677,26 @@ const TYPES = {
 // =============================================================
 const DEFAULT_PATCH = {
   bpm: 120,
-  clockOutId: '',
-  source: 'external',
+  source: 'internal',
   modules: [
-    { id: 1, type: 'CLOCK',   x:  20,          y:  40,          params: { mode: 'ext', bpm: 120, extInId: '-325153073' } },
-    { id: 2, type: 'STEP',    x: 260,          y:  40,          params: {
+    { id: 1, type: 'CLOCK',   x:  20,             y:  40,          params: { mode: 'internal', bpm: 120, extInId: '-325153073' } },
+    { id: 2, type: 'STEP',    x: 260,             y:  40,          params: {
         steps: [
-          { on: true,  pitch: 60, vel: 110 }, { on: false, pitch: 60, vel: 100 },
-          { on: true,  pitch: 67, vel:  90 }, { on: false, pitch: 60, vel: 100 },
-          { on: true,  pitch: 64, vel: 105 }, { on: false, pitch: 60, vel: 100 },
-          { on: true,  pitch: 67, vel:  90 }, { on: true,  pitch: 72, vel: 115 },
-          { on: true,  pitch: 60, vel: 110 }, { on: false, pitch: 60, vel: 100 },
-          { on: true,  pitch: 67, vel:  90 }, { on: false, pitch: 60, vel: 100 },
-          { on: true,  pitch: 64, vel: 105 }, { on: true,  pitch: 65, vel:  95 },
-          { on: true,  pitch: 67, vel: 100 }, { on: true,  pitch: 72, vel: 120 },
+          { on: true,  pitch: 48, vel: 110 }, { on: false, pitch: 60, vel: 100 },
+          { on: false, pitch: 62, vel:  90 }, { on: true,  pitch: 59, vel: 100 },
+          { on: true,  pitch: 60, vel: 105 }, { on: false, pitch: 60, vel: 100 },
+          { on: false, pitch: 62, vel:  90 }, { on: true,  pitch: 67, vel: 115 },
+          { on: true,  pitch: 64, vel: 110 }, { on: false, pitch: 60, vel: 100 },
+          { on: true,  pitch: 52, vel:  90 }, { on: false, pitch: 60, vel: 100 },
+          { on: false, pitch: 64, vel: 105 }, { on: false, pitch: 65, vel:  95 },
+          { on: true,  pitch: 62, vel: 100 }, { on: true,  pitch: 60, vel: 120 },
         ],
         div: 1, gateLen: 0.5, len: 16,
     } },
-    { id: 3, type: 'QUANT',   x: 696.68359375, y: 201.98828125, params: {} },
-    { id: 4, type: 'MIDIOUT', x: 955.65625,    y: 201.16015625, params: { deviceId: '464023706', channel: 1 } },
-    { id: 5, type: 'EUCLID',  x:  21.9921875,  y: 268.94921875, params: { hits: 5, steps: 16, rot: 0, pitch: 36, vel: 110, gateLen: 0.5, div: 1 } },
-    { id: 6, type: 'MIDIOUT', x: 400.21875,    y: 214.23046875, params: { deviceId: '464023706', channel: 2 } },
+    { id: 3, type: 'QUANT',   x: 816.4375,        y: 201.81640625, params: {} },
+    { id: 4, type: 'MIDIOUT', x: 1070.66796875,   y: 201.57421875, params: { deviceId: '464023706', channel: 1 } },
+    { id: 5, type: 'EUCLID',  x:  21.9921875,     y: 268.94921875, params: { hits: 5, steps: 16, rot: 0, pitch: 36, vel: 110, gateLen: 0.5, div: 1 } },
+    { id: 6, type: 'MIDIOUT', x: 436.46875,       y: 268.015625,   params: { deviceId: '464023706', channel: 2 } },
   ],
   cables: [
     { from: { mid: 1, port: 'clk'  }, to: { mid: 2, port: 'clk' }, type: 'clock' },
@@ -666,6 +710,52 @@ const DEFAULT_PATCH = {
 // =============================================================
 // SHARED MODULE FRAME COMPONENT
 // =============================================================
+const NumKnob = defineComponent({
+  name: 'NumKnob',
+  template: '#tmpl-knob',
+  props: {
+    modelValue: { type: Number, required: true },
+    min:  { type: Number, default: -Infinity },
+    max:  { type: Number, default:  Infinity },
+    step: { type: Number, default: 1 },
+  },
+  emits: ['update:modelValue', 'change'],
+  data() { return { _holdT: null, _repT: null }; },
+  beforeUnmount() { this.release(); },
+  methods: {
+    clamp(v) { return Math.min(this.max, Math.max(this.min, v)); },
+    decimals() {
+      const s = String(this.step);
+      const i = s.indexOf('.');
+      return i < 0 ? 0 : s.length - i - 1;
+    },
+    setVal(v) {
+      const d = this.decimals();
+      const out = d ? Number(this.clamp(v).toFixed(d)) : this.clamp(v);
+      if (out !== this.modelValue) this.$emit('update:modelValue', out);
+    },
+    bump(dir) { this.setVal(this.modelValue + dir * this.step); this.$emit('change'); },
+    onInput(e) {
+      const v = parseFloat(e.target.value);
+      if (Number.isFinite(v)) this.setVal(v);
+    },
+    onWheel(e) { this.bump(e.deltaY < 0 ? 1 : -1); },
+    hold(dir, e) {
+      e.preventDefault();
+      this.bump(dir);
+      this._holdT = setTimeout(() => {
+        this._repT = setInterval(() => this.bump(dir), 60);
+      }, 300);
+      window.addEventListener('pointerup', this.release, { once: true });
+      window.addEventListener('pointercancel', this.release, { once: true });
+    },
+    release() {
+      clearTimeout(this._holdT); this._holdT = null;
+      clearInterval(this._repT); this._repT = null;
+    },
+  },
+});
+
 const ModuleFrame = defineComponent({
   name: 'ModuleFrame',
   template: '#tmpl-frame',
@@ -791,7 +881,7 @@ const App = {
     return {
       ROOTS, SCALES, SIGNAL_COLORS, PALETTE,
       transport: reactive({ playing: false, bpm: 120, source: 'internal', nextTick: 0, tickIdx: 0, extClockCount: 0 }),
-      midi:  shallowReactive({ access: null, outputs: new Map(), inputs: new Map(), clockOutId: '' }),
+      midi:  shallowReactive({ access: null, outputs: new Map(), inputs: new Map() }),
       modules: reactive([]),
       cables:  reactive([]),
       nextId: 1,
@@ -894,14 +984,12 @@ const App = {
       for (const m of this.modules) {
         if (m.type === 'STEP' || m.type === 'EUCLID') { m.state.pos = -1; m.state.tickCounter = 0; }
       }
-      if (this.transport.source === 'internal' && !fromExt) this.sendMidiClockStart();
       if (this.transport.source === 'internal') setTimeout(() => this.scheduler(), 0);
     },
 
     stopTransport() {
       if (!this.transport.playing) return;
       this.transport.playing = false;
-      if (this.transport.source === 'internal') this.sendMidiClockStop();
       this.panic();
     },
 
@@ -910,7 +998,6 @@ const App = {
       const horizon = nowSec() + LOOKAHEAD_SEC;
       while (this.transport.nextTick < horizon) {
         this.fireMasterPulse(this.transport.nextTick, this.transport.tickIdx);
-        this.sendMidiClockTicks(this.transport.nextTick);
         this.transport.nextTick += secondsPerPulse(this.transport.bpm);
         this.transport.tickIdx++;
       }
@@ -952,7 +1039,6 @@ const App = {
       // reconcile selected device ids
       const clk = this.modules.find(m => m.type === 'CLOCK');
       if (clk && clk.params.extInId && !this.midi.inputs.has(clk.params.extInId)) clk.params.extInId = '';
-      if (this.midi.clockOutId   && !this.midi.outputs.has(this.midi.clockOutId))   this.midi.clockOutId   = '';
       this.rerouteVersion++;
     },
 
@@ -973,15 +1059,6 @@ const App = {
         this.fireMasterPulse(nowSec(), this.transport.tickIdx++);
       }
     },
-
-    sendMidiClockTicks(t) {
-      const out = this.midi.outputs.get(this.midi.clockOutId);
-      if (!out) return;
-      const spp = secondsPerPulse(this.transport.bpm);
-      for (let i = 0; i < TICKS_PER_PULSE; i++) out.send([0xf8], (t + i * spp / TICKS_PER_PULSE) * 1000);
-    },
-    sendMidiClockStart() { const o = this.midi.outputs.get(this.midi.clockOutId); if (o) o.send([0xfa]); },
-    sendMidiClockStop()  { const o = this.midi.outputs.get(this.midi.clockOutId); if (o) o.send([0xfc]); },
 
     panic() {
       for (const out of this.midi.outputs.values()) {
@@ -1024,7 +1101,6 @@ const App = {
     serialize() {
       return {
         bpm: this.transport.bpm,
-        clockOutId: this.midi.clockOutId,
         source: this.transport.source,
         modules: this.modules.map(m => ({ id: m.id, type: m.type, x: m.x, y: m.y, params: JSON.parse(JSON.stringify(m.params)) })),
         cables: this.cables.map(c => ({ from: { ...c.from }, to: { ...c.to }, type: c.type })),
@@ -1054,7 +1130,6 @@ const App = {
         if (droppedIds.has(c.from.mid) || droppedIds.has(c.to.mid)) continue;
         this.cables.push({ from: { ...c.from }, to: { ...c.to }, type: c.type });
       }
-      if (data.clockOutId)   this.midi.clockOutId = data.clockOutId;
       // Back-compat: legacy patches stored EXT device globally; migrate onto the CLOCK module.
       if (data.extClockInId) {
         const clk = this.modules.find(m => m.type === 'CLOCK');
@@ -1182,7 +1257,6 @@ const App = {
   },
 
   watch: {
-    'midi.clockOutId'(v)   { this.setStatus(v ? 'MIDI clock out enabled' : 'MIDI clock out off'); this.save(); },
   },
 
   mounted() {
@@ -1223,6 +1297,7 @@ const App = {
 // MOUNT — patch port elements with data attrs so portCenter() can find them
 // =============================================================
 const app = createApp(App);
+app.component('num-knob', NumKnob);
 app.mount('#app');
 
 // After mount, walk the DOM and add data-mid / data-port / data-dir / data-type
