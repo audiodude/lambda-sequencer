@@ -179,11 +179,10 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
   <div id="stage" ref="stage" @pointerdown="onStagePointerDown">
     <div class="grid-bg"></div>
     <svg id="cables" xmlns="http://www.w3.org/2000/svg" :data-v="rerouteVersion">
-      <g v-for="(c, i) in cables" :key="i">
-        <path class="cable-hit"
-              :d="cablePaths[i]"
-              @pointerdown.stop="selectedCableIdx = i"
-              @dblclick="deleteCable(i)" />
+      <g v-for="(c, i) in cables" :key="i"
+         @pointerdown.stop="selectedCableIdx = i"
+         @dblclick="deleteCable(i)">
+        <path class="cable-hit" :d="cablePaths[i]" />
         <path :class="['cable', { selected: selectedCableIdx === i }]"
               :stroke="SIGNAL_COLORS[c.type]"
               :d="cablePaths[i]" />
