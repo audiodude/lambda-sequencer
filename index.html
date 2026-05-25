@@ -15,7 +15,7 @@
   --accent: #c084ff;
   --clock: #ffffff;
   --note: #ffd84a;
-  --scale: #c084ff;
+  --scale: #3fd9aa;
   --bad: #ff5050;
   --good: #5fff9c;
 }
@@ -267,8 +267,9 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
     <span class="close" @click="dismissHelp">✕</span>
     <h4>λ-SEQ</h4>
     <div>Drag <b>jacks</b> to patch cables. Click a cable then <kbd>Del</kbd>, or double-click to remove.</div>
-    <div style="margin-top:6px"><span style="color:#fff">●</span> clock &nbsp; <span style="color:#ffd84a">●</span> note &nbsp; <span style="color:#c084ff">●</span> scale</div>
+    <div style="margin-top:6px"><span style="color:var(--clock)">●</span> clock &nbsp; <span style="color:var(--note)">●</span> note &nbsp; <span style="color:var(--scale)">●</span> scl (scale)</div>
     <div style="margin-top:6px"><b>STEP:</b> click cells to toggle, scroll-wheel over a cell to change pitch.</div>
+    <div style="margin-top:6px">In each module's title bar: <b>?</b> shows module-specific help, the overlapping-squares icon duplicates the module, <span style="color:var(--bad)">✕</span> removes it.</div>
     <div style="margin-top:6px"><kbd>Space</kbd> play/stop · drag module headers to move</div>
     <div style="margin-top:6px">Patches autosave to localStorage.</div>
   </div>
@@ -572,7 +573,7 @@ const SCALES = {
 const LOOKAHEAD_MS  = 25;
 const LOOKAHEAD_SEC = 0.035;
 const TICKS_PER_PULSE = 6;
-const SIGNAL_COLORS = { clock: '#ffffff', note: '#ffd84a', scale: '#c084ff' };
+const SIGNAL_COLORS = { clock: '#ffffff', note: '#ffd84a', scale: '#3fd9aa' };
 const CLOCK_BPMS = [60, 80, 90, 100, 110, 120, 128, 140, 160, 180];
 const PALETTE = ['CLOCK','DIV','STEP','EUCLID','TRANSPOSE','QUANT','CHORD','CHANCE','SCL','MIDIOUT'];
 const SAVE_KEY = 'lambda-seq-v1:' + location.pathname;
