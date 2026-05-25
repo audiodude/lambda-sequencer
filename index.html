@@ -74,15 +74,19 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
 .module .head .title { opacity: 0.75; }
 .module .head .actions { display: flex; align-items: center; gap: 2px; }
 .module .head .x,
-.module .head .q {
+.module .head .q,
+.module .head .dup {
   cursor: pointer; padding: 0 4px; line-height: 1; transition: opacity 0.1s;
   display: inline-flex; align-items: center; justify-content: center; height: 20px;
 }
 .module .head .q { font-size: 14px; opacity: 0.75; color: var(--dim); font-weight: 700; }
 .module .head .q.on { opacity: 1; color: var(--accent); }
+.module .head .dup { opacity: 0.6; color: var(--dim); }
+.module .head .dup svg { width: 14px; height: 14px; display: block; }
 .module .head .x { font-size: 20px; opacity: 0.6; color: var(--bad); padding-right: 8px; }
 .module .head .x:hover,
-.module .head .q:hover { opacity: 1; }
+.module .head .q:hover,
+.module .head .dup:hover { opacity: 1; }
 
 .module .help-panel {
   position: absolute;
@@ -245,6 +249,7 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
                @head-pointerdown="beginNodeDrag(m, $event)"
                @port-pointerdown="beginPatch(m, $event.port, $event.dir, $event.type, $event.event)"
                @remove="removeModule(m.id)"
+               @duplicate="duplicateModule(m.id)"
                @change="save"
                @reroute="rerouteVersion++" />
   </div>
@@ -298,6 +303,12 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
       <span class="title">{{ title }} #{{ module.id }}</span>
       <span class="actions">
         <span v-if="$slots.help" :class="['q', { on: helpOpen }]" title="help" @click.stop="helpOpen = !helpOpen" @pointerdown.stop>?</span>
+        <span class="dup" title="duplicate" @click.stop="$emit('duplicate')" @pointerdown.stop>
+          <svg viewBox="0 0 14 14" aria-hidden="true">
+            <rect x="3" y="3" width="8" height="8" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.4"/>
+            <rect x="6" y="6" width="8" height="8" rx="1.5" fill="var(--panel-hi)" stroke="currentColor" stroke-width="1.4"/>
+          </svg>
+        </span>
         <span class="x" title="delete" @click.stop="$emit('remove')" @pointerdown.stop>✕</span>
       </span>
     </div>
@@ -332,7 +343,7 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
   <module-frame :module="module" title="CLOCK" :inputs="[]" :outputs="[{name:'clk',type:'clock'}]"
                 @head-pointerdown="$emit('head-pointerdown', $event)"
                 @port-pointerdown="$emit('port-pointerdown', $event)"
-                @remove="$emit('remove')">
+                @remove="$emit('remove')" @duplicate="$emit('duplicate')">
     <div class="modeseg">
       <button type="button" :class="{ on: modeSel === 'internal' }" @click="modeSel = 'internal'; onModeChange()">BPM</button>
       <button type="button" :class="{ on: modeSel === 'ext' }" @click="modeSel = 'ext'; onModeChange()">EXT</button>
@@ -357,7 +368,7 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
   <module-frame :module="module" title="STEP" :inputs="[{name:'clk',type:'clock'}]" :outputs="[{name:'note',type:'note'}]"
                 @head-pointerdown="$emit('head-pointerdown', $event)"
                 @port-pointerdown="$emit('port-pointerdown', $event)"
-                @remove="$emit('remove')">
+                @remove="$emit('remove')" @duplicate="$emit('duplicate')">
     <div class="grid16">
       <div v-for="(s, i) in module.params.steps" :key="i"
            :class="['cell', { on: s.on, beat: i % 4 === 0, dim: i >= module.params.len, cur: module.state.pos === i }]"
@@ -386,7 +397,7 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
   <module-frame :module="module" title="EUCLID" :inputs="[{name:'clk',type:'clock'}]" :outputs="[{name:'note',type:'note'}]"
                 @head-pointerdown="$emit('head-pointerdown', $event)"
                 @port-pointerdown="$emit('port-pointerdown', $event)"
-                @remove="$emit('remove')">
+                @remove="$emit('remove')" @duplicate="$emit('duplicate')">
     <div class="ring-wrap">
       <svg class="ring" width="140" height="140" viewBox="-70 -70 140 140">
         <circle class="bg" cx="0" cy="0" r="54"/>
@@ -412,7 +423,7 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
   <module-frame :module="module" title="DIV" :inputs="[{name:'clk',type:'clock'}]" :outputs="[{name:'clk',type:'clock'}]"
                 @head-pointerdown="$emit('head-pointerdown', $event)"
                 @port-pointerdown="$emit('port-pointerdown', $event)"
-                @remove="$emit('remove')">
+                @remove="$emit('remove')" @duplicate="$emit('duplicate')">
     <div class="row">
       <label>RATIO</label>
       <num-knob :min="1" :max="16" v-model.number="module.params.ratio" @change="$emit('change')"></num-knob>
@@ -425,7 +436,7 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
   <module-frame :module="module" title="TRANSPOSE" :inputs="[{name:'in',type:'note'}]" :outputs="[{name:'out',type:'note'}]"
                 @head-pointerdown="$emit('head-pointerdown', $event)"
                 @port-pointerdown="$emit('port-pointerdown', $event)"
-                @remove="$emit('remove')">
+                @remove="$emit('remove')" @duplicate="$emit('duplicate')">
     <div class="row">
       <label>SEMIS</label>
       <num-knob :min="-48" :max="48" v-model.number="module.params.semis" @change="$emit('change')"></num-knob>
@@ -439,7 +450,7 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
                 :outputs="[{name:'out',type:'note'}]"
                 @head-pointerdown="$emit('head-pointerdown', $event)"
                 @port-pointerdown="$emit('port-pointerdown', $event)"
-                @remove="$emit('remove')">
+                @remove="$emit('remove')" @duplicate="$emit('duplicate')">
     <div class="scaledisp">{{ scaleLabel }}</div>
     <template #help>
       Snaps incoming pitch to the active scale.<br>
@@ -454,7 +465,7 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
                 :outputs="[{name:'out',type:'note'}]"
                 @head-pointerdown="$emit('head-pointerdown', $event)"
                 @port-pointerdown="$emit('port-pointerdown', $event)"
-                @remove="$emit('remove')">
+                @remove="$emit('remove')" @duplicate="$emit('duplicate')">
     <div class="row">
       <label>TYPE</label>
       <select v-model="module.params.type" @change="$emit('change')">
@@ -478,7 +489,7 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
   <module-frame :module="module" title="CHANCE" :inputs="[{name:'in',type:'note'}]" :outputs="[{name:'out',type:'note'}]"
                 @head-pointerdown="$emit('head-pointerdown', $event)"
                 @port-pointerdown="$emit('port-pointerdown', $event)"
-                @remove="$emit('remove')">
+                @remove="$emit('remove')" @duplicate="$emit('duplicate')">
     <div class="row">
       <label>PROB %</label>
       <num-knob :min="0" :max="100" v-model.number="module.params.prob" @change="$emit('change')"></num-knob>
@@ -486,11 +497,37 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
   </module-frame>
 </template>
 
+<template id="tmpl-scl">
+  <module-frame :module="module" title="SCL" :inputs="[]" :outputs="[{name:'scl',type:'scale'}]"
+                @head-pointerdown="$emit('head-pointerdown', $event)"
+                @port-pointerdown="$emit('port-pointerdown', $event)"
+                @remove="$emit('remove')" @duplicate="$emit('duplicate')">
+    <div class="row">
+      <label>ROOT</label>
+      <select v-model.number="module.params.root" @change="broadcast">
+        <option v-for="(r,i) in ROOTS" :key="i" :value="i">{{ r }}</option>
+      </select>
+    </div>
+    <div class="row">
+      <label>SCALE</label>
+      <select v-model="module.params.scale" @change="broadcast" style="flex:1">
+        <option v-for="s in Object.keys(SCALES)" :key="s" :value="s">{{ s }}</option>
+      </select>
+    </div>
+    <div class="scaledisp">{{ ROOTS[module.params.root] }} {{ module.params.scale }}</div>
+    <template #help>
+      Broadcasts a scale to patched QUANT or CHORD modules.<br>
+      Pick a <b>ROOT</b> and <b>SCALE</b>, then patch <span class="scl">scl</span>
+      into a module's <span class="scl">scl</span> input.
+    </template>
+  </module-frame>
+</template>
+
 <template id="tmpl-midiout">
   <module-frame :module="module" title="MIDI OUT" :inputs="[{name:'in',type:'note'}]" :outputs="[]"
                 @head-pointerdown="$emit('head-pointerdown', $event)"
                 @port-pointerdown="$emit('port-pointerdown', $event)"
-                @remove="$emit('remove')">
+                @remove="$emit('remove')" @duplicate="$emit('duplicate')">
     <div class="row">
       <label>DEVICE</label>
       <select v-model="module.params.deviceId" style="flex:1;min-width:0" @change="$emit('change')">
@@ -530,7 +567,7 @@ const LOOKAHEAD_SEC = 0.035;
 const TICKS_PER_PULSE = 6;
 const SIGNAL_COLORS = { clock: '#ffffff', note: '#ffd84a', scale: '#c084ff' };
 const CLOCK_BPMS = [60, 80, 90, 100, 110, 120, 128, 140, 160, 180];
-const PALETTE = ['CLOCK','DIV','STEP','EUCLID','TRANSPOSE','QUANT','CHORD','CHANCE','MIDIOUT'];
+const PALETTE = ['CLOCK','DIV','STEP','EUCLID','TRANSPOSE','QUANT','CHORD','CHANCE','SCL','MIDIOUT'];
 const SAVE_KEY = 'lambda-seq-v1:' + location.pathname;
 const HELP_KEY = 'lambda-seq-help-seen:' + location.pathname;
 
@@ -684,6 +721,12 @@ const TYPES = {
       if (Math.random() * 100 < m.params.prob) ctx.emit(m, 'out', ev);
     },
   },
+  SCL: {
+    inputs: [], outputs: [{name:'scl',type:'scale'}],
+    defaults: () => ({ root: 0, scale: 'major' }),
+    onInput() {},
+    prime(ctx, m) { ctx.emit(m, 'scl', { kind: 'scale', root: m.params.root, scale: m.params.scale }); },
+  },
   MIDIOUT: {
     inputs: [{name:'in',type:'note'}], outputs: [],
     defaults: () => ({ deviceId: '', channel: 1 }),
@@ -801,7 +844,7 @@ const ModuleFrame = defineComponent({
     inputs:  { type: Array,  default: () => [] },
     outputs: { type: Array,  default: () => [] },
   },
-  emits: ['head-pointerdown', 'port-pointerdown', 'remove'],
+  emits: ['head-pointerdown', 'port-pointerdown', 'remove', 'duplicate'],
   data() { return { helpOpen: false }; },
 });
 
@@ -814,7 +857,7 @@ const baseProps = {
   midiOutputs: { type: Object, default: () => new Map() },
   midiInputs:  { type: Object, default: () => new Map() },
 };
-const baseEmits = ['head-pointerdown', 'port-pointerdown', 'remove', 'change', 'reroute'];
+const baseEmits = ['head-pointerdown', 'port-pointerdown', 'remove', 'duplicate', 'change', 'reroute'];
 
 const ModuleClock = defineComponent({
   template: '#tmpl-clock',
@@ -896,6 +939,20 @@ const ModuleQuant    = defineComponent({ template:'#tmpl-quant',    components:{
 const ModuleChord    = defineComponent({ template:'#tmpl-chord',    components:{ModuleFrame}, props: baseProps, emits: baseEmits, mixins: [scaleLabelMixin] });
 const ModuleChance   = defineComponent({ template:'#tmpl-chance',   components:{ModuleFrame}, props: baseProps, emits: baseEmits });
 
+const ModuleScl = defineComponent({
+  template: '#tmpl-scl',
+  components: { ModuleFrame },
+  props: baseProps, emits: baseEmits,
+  data() { return { ROOTS, SCALES }; },
+  methods: {
+    broadcast() {
+      this.$root.emit(this.module, 'scl', { kind: 'scale', root: this.module.params.root, scale: this.module.params.scale });
+      this.$emit('change');
+    },
+  },
+  mounted() { this.broadcast(); },
+});
+
 const ModuleMidiOut = defineComponent({
   template: '#tmpl-midiout',
   components: { ModuleFrame },
@@ -905,7 +962,7 @@ const ModuleMidiOut = defineComponent({
 const COMPONENT_FOR = {
   CLOCK: ModuleClock, STEP: ModuleStep, EUCLID: ModuleEuclid, DIV: ModuleDiv,
   TRANSPOSE: ModuleTranspose, QUANT: ModuleQuant, CHORD: ModuleChord,
-  CHANCE: ModuleChance, MIDIOUT: ModuleMidiOut,
+  CHANCE: ModuleChance, SCL: ModuleScl, MIDIOUT: ModuleMidiOut,
 };
 
 // =============================================================
@@ -988,6 +1045,14 @@ const App = {
       this.modules.splice(i, 1);
       this.cables = this.cables.filter(c => c.from.mid !== id && c.to.mid !== id);
       if (this.transport.playing) this.panic();
+      this.save();
+    },
+
+    duplicateModule(id) {
+      const src = this.modules.find(m => m.id === id);
+      if (!src) return;
+      const params = JSON.parse(JSON.stringify(src.params));
+      this.addModule(src.type, src.x + 30, src.y + 30, { params });
       this.save();
     },
 
@@ -1288,6 +1353,8 @@ const App = {
       if (outMid === inMid) return;
       if (this.cables.some(c => c.from.mid === outMid && c.from.port === outPort && c.to.mid === inMid && c.to.port === inPort)) return;
       this.cables.push({ from: { mid: outMid, port: outPort }, to: { mid: inMid, port: inPort }, type: p.type });
+      const src = this.modules.find(x => x.id === outMid);
+      if (src) { const def = TYPES[src.type]; if (def && def.prime) def.prime(this, src); }
       if (this.transport.playing) this.panic();
       this.save();
     },
