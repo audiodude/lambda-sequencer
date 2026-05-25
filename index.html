@@ -241,7 +241,7 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
 
 <!-- shared frame used by every module type -->
 <template id="tmpl-frame">
-  <div :class="['module', module.type]" :style="{ left: module.x + 'px', top: module.y + 'px' }">
+  <div :class="['module', module.type]" :data-mid="module.id" :style="{ left: module.x + 'px', top: module.y + 'px' }">
     <div class="head" @pointerdown="$emit('head-pointerdown', $event)">
       <span>{{ title }} #{{ module.id }}</span>
       <span class="x" title="delete" @click.stop="$emit('remove')">✕</span>
@@ -1148,15 +1148,9 @@ const App = {
 
     // ----- cable geometry -----
     portCenter(mid, dir, port) {
-      const mod = this.modules.find(x => x.id === mid);
-      if (!mod) return null;
       const stage = this.$refs.stage;
       if (!stage) return null;
-      // Find the module's DOM element by matching position (modules carry no id in the rendered DOM).
-      let el = null;
-      for (const e of stage.querySelectorAll('.module')) {
-        if (parseFloat(e.style.left) === mod.x && parseFloat(e.style.top) === mod.y) { el = e; break; }
-      }
+      const el = stage.querySelector(`.module[data-mid="${mid}"]`);
       if (!el) return null;
       const portEl = el.querySelector(`.port[data-port="${port}"][data-dir="${dir}"]`) ||
                      [...el.querySelectorAll('.port')].find(p => p.querySelector('.lbl')?.textContent === port && p.parentElement.classList.contains(dir));
@@ -1203,7 +1197,8 @@ const App = {
       const d = this.drag; if (!d) return;
       d.m.x = Math.max(0, d.ox + (e.clientX - d.sx));
       d.m.y = Math.max(0, d.oy + (e.clientY - d.sy));
-      this.rerouteVersion++;
+      // Bump on next tick so cablePaths re-reads DOM AFTER the module's style.left/top has patched.
+      nextTick(() => this.rerouteVersion++);
     },
     _onDragEnd() {
       document.removeEventListener('pointermove', this._onDragMove);
