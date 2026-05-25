@@ -132,7 +132,7 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
 .module .knob:focus-within { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 .module .knob input {
   width: 52px; text-align: center;
-  padding: 6px 4px; font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums;
+  padding: 6px 3px; font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums;
   color: var(--text); background: transparent; border: 0; border-radius: 0;
   -moz-appearance: textfield;
 }
@@ -168,8 +168,10 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
 .module.STEP .cell {
   height: 28px; background: var(--bg2); border: 1px solid var(--line); border-radius: 3px;
   cursor: pointer; position: relative; overflow: hidden;
+  opacity: 0.55; transition: opacity 0.1s;
 }
-.module.STEP .cell.on { background: var(--note); border-color: var(--note); }
+.module.STEP .cell.on { background: var(--note); border-color: var(--note); opacity: 1; }
+.module.STEP .cell:hover { opacity: 1; }
 .module.STEP .cell.cur { box-shadow: inset 0 0 0 2px #fff; }
 .module.STEP .cell.beat { border-top: 2px solid rgba(255,255,255,0.15); }
 .module.STEP .cell.dim { opacity: 0.3; }
@@ -367,6 +369,11 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
     </div>
     <div :class="['big', { flash: flashing }]">{{ module.params.mode === 'ext' ? 'EXT' : module.params.bpm + ' BPM' }}</div>
     <div class="sub">1/16 pulses</div>
+    <template #help>
+      Master clock. Emits one pulse per 1/16 note on <b>clk</b>.<br>
+      <b>BPM</b> runs the internal scheduler at the chosen tempo.
+      <b>EXT</b> chases MIDI clock from the selected input device.
+    </template>
   </module-frame>
 </template>
 
@@ -375,20 +382,22 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
                 @head-pointerdown="$emit('head-pointerdown', $event)"
                 @port-pointerdown="$emit('port-pointerdown', $event)"
                 @remove="$emit('remove')" @duplicate="$emit('duplicate')">
-    <div class="grid16 labels">
-      <div v-for="(s, i) in module.params.steps" :key="i"
-           :class="['label', { on: s.on, dim: i >= module.params.len }]">
-        <span v-if="s.on">{{ noteName(s.pitch) }}</span>
+    <template v-for="(chunk, ci) in rowChunks" :key="ci">
+      <div class="grid16 labels">
+        <div v-for="(s, j) in chunk" :key="j"
+             :class="['label', { on: s.on, dim: (ci*16 + j) >= module.params.len }]">
+          <span v-if="s.on">{{ noteName(s.pitch) }}</span>
+        </div>
       </div>
-    </div>
-    <div class="grid16">
-      <div v-for="(s, i) in module.params.steps" :key="i"
-           :class="['cell', { on: s.on, beat: i % 4 === 0, dim: i >= module.params.len, cur: module.state.pos === i }]"
-           @click="toggleStep(i)"
-           @contextmenu.prevent="clearStep(i)"
-           @wheel.prevent="pitchStep(i, $event)">
+      <div class="grid16">
+        <div v-for="(s, j) in chunk" :key="j"
+             :class="['cell', { on: s.on, beat: j % 4 === 0, dim: (ci*16 + j) >= module.params.len, cur: module.state.pos === (ci*16 + j) }]"
+             @click="toggleStep(ci*16 + j)"
+             @contextmenu.prevent="clearStep(ci*16 + j)"
+             @wheel.prevent="pitchStep(ci*16 + j, $event)">
+        </div>
       </div>
-    </div>
+    </template>
     <div class="row">
       <label>DIV</label>
       <select v-model.number="module.params.div" @change="$emit('change')">
@@ -399,8 +408,16 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
       <label>GATE</label>
       <num-knob :min="0.05" :max="1" :step="0.05" v-model.number="module.params.gateLen" @change="$emit('change')"></num-knob>
       <label>LEN</label>
-      <num-knob :min="1" :max="16" v-model.number="module.params.len" @change="$emit('change')"></num-knob>
+      <num-knob :min="1" :max="64" v-model.number="module.params.len" @change="$emit('change')"></num-knob>
     </div>
+    <template #help>
+      Step sequencer driven by <b>clk</b>. Click a cell to toggle it,
+      right-click to clear, scroll-wheel over a cell to nudge its pitch
+      (shift = octave).<br>
+      <b>DIV</b> sets the step length, <b>GATE</b> is the note duration as a
+      fraction of the step, <b>LEN</b> is the pattern length (1–64; over 16
+      it wraps onto additional rows).
+    </template>
   </module-frame>
 </template>
 
@@ -427,6 +444,12 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
       <label>VEL</label>   <num-knob :min="1" :max="127" v-model.number="module.params.vel"   @change="$emit('change')"></num-knob>
       <label>GATE</label>  <num-knob :min="0.05" :max="1" :step="0.05" v-model.number="module.params.gateLen" @change="$emit('change')"></num-knob>
     </div>
+    <template #help>
+      Distributes <b>HITS</b> as evenly as possible across <b>STEPS</b>
+      (Bresenham/Euclidean), then rotates by <b>ROT</b>.<br>
+      Every active position fires a note at <b>PITCH</b>/<b>VEL</b>
+      with the given <b>GATE</b> length when <b>clk</b> ticks.
+    </template>
   </module-frame>
 </template>
 
@@ -440,6 +463,10 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
       <num-knob :min="1" :max="16" v-model.number="module.params.ratio" @change="$emit('change')"></num-knob>
       <span style="color:var(--dim);font-size:10px">÷ N</span>
     </div>
+    <template #help>
+      Passes one out of every <b>N</b> incoming clock pulses through.<br>
+      Use it to derive slower clocks from a master <b>CLOCK</b>.
+    </template>
   </module-frame>
 </template>
 
@@ -452,6 +479,10 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
       <label>SEMIS</label>
       <num-knob :min="-48" :max="48" v-model.number="module.params.semis" @change="$emit('change')"></num-knob>
     </div>
+    <template #help>
+      Shifts every incoming pitch by <b>SEMIS</b> semitones.<br>
+      Place before a <b>QUANT</b> if you want the result re-quantized to a scale.
+    </template>
   </module-frame>
 </template>
 
@@ -512,6 +543,10 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
       <label>PROB %</label>
       <num-knob :min="0" :max="100" v-model.number="module.params.prob" @change="$emit('change')"></num-knob>
     </div>
+    <template #help>
+      Lets each incoming note through with probability <b>PROB %</b>.<br>
+      0% mutes the stream, 100% passes everything.
+    </template>
   </module-frame>
 </template>
 
@@ -561,6 +596,11 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
       <num-knob :min="1" :max="16" v-model.number="module.params.channel" @change="$emit('change')"></num-knob>
       <span :class="['activity', { on: module.state.activity }]"></span>
     </div>
+    <template #help>
+      Sends incoming notes to the chosen MIDI <b>DEVICE</b> on
+      channel <b>CH</b>. The dot blinks when notes are flowing.<br>
+      Bring your own synth — connect a hardware or virtual MIDI input.
+    </template>
   </module-frame>
 </template>
 
@@ -918,8 +958,28 @@ const ModuleStep = defineComponent({
   template: '#tmpl-step',
   components: { ModuleFrame },
   props: baseProps, emits: baseEmits,
+  computed: {
+    visibleCount() { return Math.max(16, Math.ceil(this.module.params.len / 16) * 16); },
+    visibleSteps() {
+      this.ensureSteps();
+      return this.module.params.steps.slice(0, this.visibleCount);
+    },
+    rowChunks() {
+      const out = [];
+      for (let i = 0; i < this.visibleSteps.length; i += 16) out.push(this.visibleSteps.slice(i, i + 16));
+      return out;
+    },
+  },
+  watch: {
+    'module.params.len'() { this.ensureSteps(); },
+  },
+  mounted() { this.ensureSteps(); },
   methods: {
     noteName: midiToNoteName,
+    ensureSteps() {
+      const arr = this.module.params.steps;
+      while (arr.length < this.visibleCount) arr.push({ on: false, pitch: 60, vel: 100 });
+    },
     toggleStep(i) { const s = this.module.params.steps[i]; s.on = !s.on; this.$emit('change'); },
     clearStep(i)  { this.module.params.steps[i].on = false; this.$emit('change'); },
     pitchStep(i, e) {
