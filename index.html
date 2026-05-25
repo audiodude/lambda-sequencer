@@ -113,6 +113,7 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
   cursor: crosshair;
   box-shadow: inset 0 0 0 2px var(--bg);
   flex-shrink: 0;
+  transition: transform 0.08s, box-shadow 0.12s, background 0.08s;
 }
 .module .jack.connected { background: currentColor; }
 .module .jack:hover { transform: scale(1.2); }
@@ -137,6 +138,7 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
   -moz-appearance: textfield;
 }
 .module .knob input:focus { outline: none; }
+.module .knob.flash input { color: var(--note); text-shadow: 0 0 6px var(--note); transition: color 0.05s, text-shadow 0.05s; }
 .module .knob input::-webkit-outer-spin-button,
 .module .knob input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .module .knob .spin { display: flex; flex-direction: column; border-left: 1px solid var(--line); }
@@ -289,7 +291,7 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
 <!-- ============================================================ -->
 
 <template id="tmpl-knob">
-  <div class="knob">
+  <div :class="['knob', { flash: flash }]">
     <input type="number" :min="min" :max="max" :step="step" :value="modelValue"
            @input="onInput" @change="$emit('change')" @wheel.prevent="onWheel"
            @keydown.up.prevent="bump(1)" @keydown.down.prevent="bump(-1)">
@@ -415,14 +417,13 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
       right-click to clear, scroll-wheel over a cell to nudge its pitch
       (shift = octave).<br>
       <b>DIV</b> sets the step length, <b>GATE</b> is the note duration as a
-      fraction of the step, <b>LEN</b> is the pattern length (1–64; over 16
-      it wraps onto additional rows).
+      fraction of the step, <b>LEN</b> is the pattern length (1–64).
     </template>
   </module-frame>
 </template>
 
 <template id="tmpl-euclid">
-  <module-frame :module="module" title="EUCLID" :inputs="[{name:'clk',type:'clock'}]" :outputs="[{name:'note',type:'note'}]"
+  <module-frame :module="module" title="EUCLID" :inputs="frameInputs" :outputs="[{name:'note',type:'note'}]"
                 @head-pointerdown="$emit('head-pointerdown', $event)"
                 @port-pointerdown="$emit('port-pointerdown', $event)"
                 @remove="$emit('remove')" @duplicate="$emit('duplicate')">
@@ -440,7 +441,8 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
       <label>ROT</label>   <num-knob                    v-model.number="module.params.rot"   @change="$emit('change')"></num-knob>
     </div>
     <div class="row">
-      <label>PITCH</label> <num-knob :min="0" :max="127" v-model.number="module.params.pitch" @change="$emit('change')"></num-knob>
+      <label>PITCH</label>
+      <num-knob :min="0" :max="127" :flash="module.state.pitchFlash" v-model.number="module.params.pitch" @change="$emit('change')"></num-knob>
       <label>VEL</label>   <num-knob :min="1" :max="127" v-model.number="module.params.vel"   @change="$emit('change')"></num-knob>
       <label>GATE</label>  <num-knob :min="0.05" :max="1" :step="0.05" v-model.number="module.params.gateLen" @change="$emit('change')"></num-knob>
     </div>
@@ -448,7 +450,9 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
       Distributes <b>HITS</b> as evenly as possible across <b>STEPS</b>
       (Bresenham/Euclidean), then rotates by <b>ROT</b>.<br>
       Every active position fires a note at <b>PITCH</b>/<b>VEL</b>
-      with the given <b>GATE</b> length when <b>clk</b> ticks.
+      with the given <b>GATE</b> length when <b>clk</b> ticks.<br>
+      Patch a note source into <b>pitch</b> to override <b>PITCH</b>;
+      the latest incoming pitch is held until a new one arrives.
     </template>
   </module-frame>
 </template>
@@ -720,9 +724,16 @@ const TYPES = {
     },
   },
   EUCLID: {
-    inputs: [{name:'clk',type:'clock'}], outputs: [{name:'note',type:'note'}],
+    inputs: [{name:'clk',type:'clock'},{name:'pitch',type:'note'}], outputs: [{name:'note',type:'note'}],
     defaults: () => ({ hits: 4, steps: 16, rot: 0, pitch: 36, vel: 110, gateLen: 0.5, div: 1 }),
     onInput(ctx, m, port, ev) {
+      if (port === 'pitch' && ev.kind === 'note') {
+        m.params.pitch = clamp(ev.pitch | 0, 0, 127);
+        m.state.pitchFlash = true;
+        clearTimeout(m.state._pitchFlashT);
+        m.state._pitchFlashT = setTimeout(() => { m.state.pitchFlash = false; }, 160);
+        return;
+      }
       if (port !== 'clk' || !ctx.transport.playing) return;
       m.state.pos = ((m.state.pos ?? -1) + 1) % m.params.steps;
       const pattern = euclidPattern(m.params.hits, m.params.steps, m.params.rot);
@@ -864,6 +875,7 @@ const NumKnob = defineComponent({
     min:  { type: Number, default: -Infinity },
     max:  { type: Number, default:  Infinity },
     step: { type: Number, default: 1 },
+    flash: { type: Boolean, default: false },
   },
   emits: ['update:modelValue', 'change'],
   data() { return { _holdT: null, _repT: null }; },
@@ -999,6 +1011,12 @@ const ModuleEuclid = defineComponent({
   computed: {
     ring()   { return euclidPattern(this.module.params.hits, this.module.params.steps, this.module.params.rot); },
     ringR()  { return Math.max(3, Math.min(8, 50 / Math.max(8, this.module.params.steps))); },
+    frameInputs() {
+      return [
+        { name: 'clk',   type: 'clock' },
+        { name: 'pitch', type: 'note' },
+      ];
+    },
   },
   methods: {
     ringX(i) { const a = (i / this.module.params.steps) * Math.PI * 2 - Math.PI / 2; return (Math.cos(a) * 50).toFixed(2); },
