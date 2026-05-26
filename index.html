@@ -211,8 +211,10 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
 </head>
 <body>
 
-<div id="app" v-cloak>
+<div id="app" v-cloak></div>
 
+<template id="tmpl-app">
+<div>
   <!-- TOPBAR -->
   <div id="topbar">
     <div class="logo">λ-SEQ</div>
@@ -221,8 +223,9 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
       {{ transport.playing ? '■ STOP' : '▶ PLAY' }}
     </button>
     <div class="right">
-      <button @click="exportPatch">EXPORT</button>
-      <button @click="$refs.fileinput.click()">IMPORT</button>
+      <button @click="saveStandalone">EXPORT APP</button>
+      <button @click="exportPatch">SAVE PATCH</button>
+      <button @click="$refs.fileinput.click()">LOAD PATCH</button>
       <button @click="clearPatch">CLEAR</button>
       <button class="panic-btn" @click="panic(); setStatus('panic — all notes off')">PANIC</button>
       <button @click="helpVisible = !helpVisible">?</button>
@@ -281,10 +284,13 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
     <div style="margin-top:6px">In each module's title bar: <b>?</b> shows module-specific help, the overlapping-squares icon duplicates the module, <span style="color:var(--bad)">✕</span> removes it.</div>
     <div style="margin-top:6px"><kbd>Space</kbd> play/stop · drag module headers to move</div>
     <div style="margin-top:6px">Patches autosave to localStorage.</div>
+    <div style="margin-top:6px"><b>SAVE PATCH</b> / <b>LOAD PATCH</b>: download or load the current patch as JSON.</div>
+    <div style="margin-top:6px"><b>EXPORT APP</b>: download a self-contained HTML snapshot of the app with the current patch baked in — runs offline, no network needed.</div>
   </div>
 
   <input ref="fileinput" type="file" accept="application/json" style="display:none" @change="importPatch">
 </div>
+</template>
 
 <!-- ============================================================ -->
 <!-- MODULE TEMPLATES — one per type, plain HTML you can edit     -->
@@ -1098,6 +1104,7 @@ const COMPONENT_FOR = {
 // ROOT APP
 // =============================================================
 const App = {
+  template: '#tmpl-app',
   components: { ModuleFrame, ...COMPONENT_FOR },
 
   data() {
@@ -1381,6 +1388,43 @@ const App = {
       this.setStatus('exported patch');
     },
 
+    async saveStandalone() {
+      this.setStatus('building standalone…');
+      let vueSrc;
+      try {
+        const res = await fetch('https://unpkg.com/vue@3/dist/vue.global.js');
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        vueSrc = await res.text();
+      } catch (err) {
+        this.setStatus('vue fetch failed: ' + err.message, true);
+        return;
+      }
+      const patchJson = JSON.stringify(this.serialize());
+      const bootScript =
+        '<script>window.__LAMBDA_BOOT_PATCH__ = ' + patchJson + ';<\/script>';
+      // Encode Vue as a base64 data: URL — inlining the source between
+      // script tags doesn't work because Vue contains tokens that trigger
+      // HTML's script-data-double-escaped state and break parsing.
+      const vueB64 = btoa(unescape(encodeURIComponent(vueSrc)));
+      const inlineVue =
+        '<script src="data:application/javascript;base64,' + vueB64 + '"><\/script>';
+
+      // App uses template: '#tmpl-app', so the template element preserves all
+      // directives verbatim — we can safely serialize the current document.
+      const html = '<!DOCTYPE html>\n' + document.documentElement.outerHTML.replace(
+        /<script src="https:\/\/unpkg\.com\/vue@3\/dist\/vue\.global\.js"><\/script>/,
+        inlineVue + '\n' + bootScript
+      );
+
+      const blob = new Blob([html], { type: 'text/html' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `lambda-seq-${Date.now()}.html`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+      this.setStatus('saved standalone HTML');
+    },
+
     async importPatch(e) {
       const f = e.target.files[0]; if (!f) return;
       try {
@@ -1509,10 +1553,11 @@ const App = {
     });
     window.addEventListener('resize', () => this.rerouteVersion++);
 
-    // load saved or boot
+    // load: embedded boot patch (standalone snapshot) > saved localStorage > default
     let saved = null;
     try { saved = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null'); } catch {}
-    if (saved && saved.modules && saved.modules.length) this.load(saved);
+    if (window.__LAMBDA_BOOT_PATCH__) this.load(window.__LAMBDA_BOOT_PATCH__);
+    else if (saved && saved.modules && saved.modules.length) this.load(saved);
     else this.bootDefault();
 
     // help visibility on first load
