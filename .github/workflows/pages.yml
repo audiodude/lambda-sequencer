@@ -22,15 +22,12 @@ jobs:
     steps:
       - name: Resolve ref
         id: ref
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
-          if [ -n "${{ inputs.ref }}" ]; then
-            REF="${{ inputs.ref }}"
-          elif [ -n "${{ github.event.release.tag_name }}" ]; then
-            REF="${{ github.event.release.tag_name }}"
-          else
-            REF=$(gh release view --json tagName -q .tagName -R "$GITHUB_REPOSITORY")
+          REF="${{ inputs.ref }}"
+          [ -z "$REF" ] && REF="${{ github.event.release.tag_name }}"
+          if [ -z "$REF" ]; then
+            echo "::error::No ref provided. Trigger this via release: published, or pass an explicit ref to workflow_dispatch."
+            exit 1
           fi
           echo "ref=$REF" >> "$GITHUB_OUTPUT"
 
