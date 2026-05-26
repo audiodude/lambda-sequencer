@@ -221,7 +221,7 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
 <div>
   <!-- TOPBAR -->
   <div id="topbar">
-    <div class="logo">λ-SEQ <span class="commit-hash">7498782</span></div>
+    <div class="logo">λ-SEQ <span class="commit-hash">2b9a75f</span></div>
     <div class="sep"></div>
     <button :class="['play', { on: transport.playing }]" @click="togglePlay">
       {{ transport.playing ? '■ STOP' : '▶ PLAY' }}
@@ -338,19 +338,19 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
       <div class="col in">
         <div v-for="p in inputs" :key="p.name"
              :class="['port', { disabled: portDisabled('in', p.name) }]"
-             @pointerdown="$emit('port-pointerdown', { port: p.name, dir: 'in',  type: p.type, event: $event })"
-             @dblclick.stop="$emit('port-dblclick', { port: p.name, dir: 'in' })">
-          <div :class="['jack', p.type]"></div>
+             @pointerdown="$emit('port-pointerdown', { port: p.name, dir: 'in',  type: p.type, event: $event })">
+          <div :class="['jack', p.type]"
+               @dblclick.stop="$emit('port-dblclick', { port: p.name, dir: 'in' })"></div>
           <div class="lbl">{{ p.name }}</div>
         </div>
       </div>
       <div class="col out">
         <div v-for="p in outputs" :key="p.name"
              :class="['port', { disabled: portDisabled('out', p.name) }]"
-             @pointerdown="$emit('port-pointerdown', { port: p.name, dir: 'out', type: p.type, event: $event })"
-             @dblclick.stop="$emit('port-dblclick', { port: p.name, dir: 'out' })">
+             @pointerdown="$emit('port-pointerdown', { port: p.name, dir: 'out', type: p.type, event: $event })">
           <div class="lbl">{{ p.name }}</div>
-          <div :class="['jack', p.type]"></div>
+          <div :class="['jack', p.type]"
+               @dblclick.stop="$emit('port-dblclick', { port: p.name, dir: 'out' })"></div>
         </div>
       </div>
     </div>
