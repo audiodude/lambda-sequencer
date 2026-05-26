@@ -31,6 +31,7 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
   user-select:none; flex-wrap: nowrap;
 }
 #topbar .logo { font-weight:700; letter-spacing:0.18em; color: var(--accent); font-size: 14px; }
+#topbar .logo .commit-hash { font-family: ui-monospace, monospace; font-weight: 500; font-size: 10px; letter-spacing: 0.05em; color: var(--dim); margin-left: 6px; }
 #topbar button, #topbar select, #topbar input { background: var(--panel); color: var(--text); border:1px solid var(--line); padding: 4px 8px; font: inherit; cursor:pointer; }
 #topbar button:hover { background: var(--panel-hi); }
 #topbar label { color: var(--dim); font-size: 11px; letter-spacing: 0.08em; }
@@ -217,7 +218,7 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
 <div>
   <!-- TOPBAR -->
   <div id="topbar">
-    <div class="logo">λ-SEQ</div>
+    <div class="logo">λ-SEQ <span class="commit-hash">bcd6065</span></div>
     <div class="sep"></div>
     <button :class="['play', { on: transport.playing }]" @click="togglePlay">
       {{ transport.playing ? '■ STOP' : '▶ PLAY' }}
