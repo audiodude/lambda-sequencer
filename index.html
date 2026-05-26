@@ -107,6 +107,9 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
 .module .col.out { align-items: flex-end; }
 .module .port { display:flex; align-items: center; gap: 6px; padding: 1px 0; }
 .module .port .lbl { color: var(--dim); font-size: 10px; letter-spacing: 0.05em; }
+.module .port.disabled { opacity: 0.35; }
+.module .port.disabled .jack { background: var(--bg2); border: 1px dashed var(--dim); }
+.module .port.disabled .lbl { text-decoration: line-through; }
 .module .jack {
   width: 14px; height: 14px; border-radius: 50%;
   background: var(--bg);
@@ -218,7 +221,7 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
 <div>
   <!-- TOPBAR -->
   <div id="topbar">
-    <div class="logo">λ-SEQ <span class="commit-hash">af1c8e6</span></div>
+    <div class="logo">λ-SEQ <span class="commit-hash">7498782</span></div>
     <div class="sep"></div>
     <button :class="['play', { on: transport.playing }]" @click="togglePlay">
       {{ transport.playing ? '■ STOP' : '▶ PLAY' }}
@@ -261,6 +264,7 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
                :midi-inputs="midiInputs"
                @head-pointerdown="beginNodeDrag(m, $event)"
                @port-pointerdown="beginPatch(m, $event.port, $event.dir, $event.type, $event.event)"
+               @port-dblclick="togglePortDisabled(m, $event.dir, $event.port)"
                @remove="removeModule(m.id)"
                @duplicate="duplicateModule(m.id)"
                @change="save"
@@ -280,6 +284,7 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
     <span class="close" @click="dismissHelp">✕</span>
     <h4>λ-SEQ</h4>
     <div>Drag <b>jacks</b> to patch cables. Click a cable then <kbd>Del</kbd>, or double-click to remove.</div>
+    <div style="margin-top:6px">Double-click a <b>port</b> to disable/enable it — signals won't flow through a disabled port, but its cables stay connected.</div>
     <div style="margin-top:6px"><span style="color:var(--clock)">●</span> clock &nbsp; <span style="color:var(--note)">●</span> note &nbsp; <span style="color:var(--scale)">●</span> scl (scale)</div>
     <div style="margin-top:6px"><b>STEP:</b> click cells to toggle, scroll-wheel over a cell to change pitch.</div>
     <div style="margin-top:6px">In each module's title bar: <b>?</b> shows module-specific help, the overlapping-squares icon duplicates the module, <span style="color:var(--bad)">✕</span> removes it.</div>
@@ -332,16 +337,18 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
     <div class="ports-row">
       <div class="col in">
         <div v-for="p in inputs" :key="p.name"
-             class="port"
-             @pointerdown="$emit('port-pointerdown', { port: p.name, dir: 'in',  type: p.type, event: $event })">
+             :class="['port', { disabled: portDisabled('in', p.name) }]"
+             @pointerdown="$emit('port-pointerdown', { port: p.name, dir: 'in',  type: p.type, event: $event })"
+             @dblclick.stop="$emit('port-dblclick', { port: p.name, dir: 'in' })">
           <div :class="['jack', p.type]"></div>
           <div class="lbl">{{ p.name }}</div>
         </div>
       </div>
       <div class="col out">
         <div v-for="p in outputs" :key="p.name"
-             class="port"
-             @pointerdown="$emit('port-pointerdown', { port: p.name, dir: 'out', type: p.type, event: $event })">
+             :class="['port', { disabled: portDisabled('out', p.name) }]"
+             @pointerdown="$emit('port-pointerdown', { port: p.name, dir: 'out', type: p.type, event: $event })"
+             @dblclick.stop="$emit('port-dblclick', { port: p.name, dir: 'out' })">
           <div class="lbl">{{ p.name }}</div>
           <div :class="['jack', p.type]"></div>
         </div>
@@ -359,7 +366,7 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
 <template id="tmpl-clock">
   <module-frame :module="module" title="CLOCK" :inputs="[]" :outputs="[{name:'clk',type:'clock'}]"
                 @head-pointerdown="$emit('head-pointerdown', $event)"
-                @port-pointerdown="$emit('port-pointerdown', $event)"
+                @port-pointerdown="$emit('port-pointerdown', $event)" @port-dblclick="$emit('port-dblclick', $event)"
                 @remove="$emit('remove')" @duplicate="$emit('duplicate')">
     <div class="modeseg">
       <button type="button" :class="{ on: modeSel === 'internal' }" @click="modeSel = 'internal'; onModeChange()">BPM</button>
@@ -389,7 +396,7 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
 <template id="tmpl-step">
   <module-frame :module="module" title="STEP" :inputs="[{name:'clk',type:'clock'}]" :outputs="[{name:'note',type:'note'}]"
                 @head-pointerdown="$emit('head-pointerdown', $event)"
-                @port-pointerdown="$emit('port-pointerdown', $event)"
+                @port-pointerdown="$emit('port-pointerdown', $event)" @port-dblclick="$emit('port-dblclick', $event)"
                 @remove="$emit('remove')" @duplicate="$emit('duplicate')">
     <template v-for="(chunk, ci) in rowChunks" :key="ci">
       <div class="grid16 labels">
@@ -432,7 +439,7 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
 <template id="tmpl-euclid">
   <module-frame :module="module" title="EUCLID" :inputs="frameInputs" :outputs="[{name:'note',type:'note'}]"
                 @head-pointerdown="$emit('head-pointerdown', $event)"
-                @port-pointerdown="$emit('port-pointerdown', $event)"
+                @port-pointerdown="$emit('port-pointerdown', $event)" @port-dblclick="$emit('port-dblclick', $event)"
                 @remove="$emit('remove')" @duplicate="$emit('duplicate')">
     <div class="ring-wrap">
       <svg class="ring" width="140" height="140" viewBox="-70 -70 140 140">
@@ -467,7 +474,7 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
 <template id="tmpl-div">
   <module-frame :module="module" title="DIV" :inputs="[{name:'clk',type:'clock'}]" :outputs="[{name:'clk',type:'clock'}]"
                 @head-pointerdown="$emit('head-pointerdown', $event)"
-                @port-pointerdown="$emit('port-pointerdown', $event)"
+                @port-pointerdown="$emit('port-pointerdown', $event)" @port-dblclick="$emit('port-dblclick', $event)"
                 @remove="$emit('remove')" @duplicate="$emit('duplicate')">
     <div class="row">
       <label>RATIO</label>
@@ -484,7 +491,7 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
 <template id="tmpl-transpose">
   <module-frame :module="module" title="TRANSPOSE" :inputs="[{name:'in',type:'note'}]" :outputs="[{name:'out',type:'note'}]"
                 @head-pointerdown="$emit('head-pointerdown', $event)"
-                @port-pointerdown="$emit('port-pointerdown', $event)"
+                @port-pointerdown="$emit('port-pointerdown', $event)" @port-dblclick="$emit('port-dblclick', $event)"
                 @remove="$emit('remove')" @duplicate="$emit('duplicate')">
     <div class="row">
       <label>SEMIS</label>
@@ -502,7 +509,7 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
                 :inputs="[{name:'in',type:'note'},{name:'scl',type:'scale'}]"
                 :outputs="[{name:'out',type:'note'}]"
                 @head-pointerdown="$emit('head-pointerdown', $event)"
-                @port-pointerdown="$emit('port-pointerdown', $event)"
+                @port-pointerdown="$emit('port-pointerdown', $event)" @port-dblclick="$emit('port-dblclick', $event)"
                 @remove="$emit('remove')" @duplicate="$emit('duplicate')">
     <div class="modeseg">
       <button type="button" :class="{ on: module.params.mode === 'snap' }"
@@ -524,7 +531,7 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
                 :inputs="[{name:'in',type:'note'},{name:'scl',type:'scale'}]"
                 :outputs="[{name:'out',type:'note'}]"
                 @head-pointerdown="$emit('head-pointerdown', $event)"
-                @port-pointerdown="$emit('port-pointerdown', $event)"
+                @port-pointerdown="$emit('port-pointerdown', $event)" @port-dblclick="$emit('port-dblclick', $event)"
                 @remove="$emit('remove')" @duplicate="$emit('duplicate')">
     <div class="row">
       <label>TYPE</label>
@@ -550,7 +557,7 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
 <template id="tmpl-chance">
   <module-frame :module="module" title="CHANCE" :inputs="[{name:'in',type:'note'}]" :outputs="[{name:'out',type:'note'}]"
                 @head-pointerdown="$emit('head-pointerdown', $event)"
-                @port-pointerdown="$emit('port-pointerdown', $event)"
+                @port-pointerdown="$emit('port-pointerdown', $event)" @port-dblclick="$emit('port-dblclick', $event)"
                 @remove="$emit('remove')" @duplicate="$emit('duplicate')">
     <div class="row">
       <label>PROB %</label>
@@ -566,7 +573,7 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
 <template id="tmpl-scl">
   <module-frame :module="module" title="SCL" :inputs="[]" :outputs="[{name:'scl',type:'scale'}]"
                 @head-pointerdown="$emit('head-pointerdown', $event)"
-                @port-pointerdown="$emit('port-pointerdown', $event)"
+                @port-pointerdown="$emit('port-pointerdown', $event)" @port-dblclick="$emit('port-dblclick', $event)"
                 @remove="$emit('remove')" @duplicate="$emit('duplicate')">
     <div class="row">
       <label>ROOT</label>
@@ -595,7 +602,7 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
 <template id="tmpl-midiout">
   <module-frame :module="module" title="MIDI OUT" :inputs="[{name:'in',type:'note'}]" :outputs="[]"
                 @head-pointerdown="$emit('head-pointerdown', $event)"
-                @port-pointerdown="$emit('port-pointerdown', $event)"
+                @port-pointerdown="$emit('port-pointerdown', $event)" @port-dblclick="$emit('port-dblclick', $event)"
                 @remove="$emit('remove')" @duplicate="$emit('duplicate')">
     <div class="row">
       <label>DEVICE</label>
@@ -932,8 +939,11 @@ const ModuleFrame = defineComponent({
     inputs:  { type: Array,  default: () => [] },
     outputs: { type: Array,  default: () => [] },
   },
-  emits: ['head-pointerdown', 'port-pointerdown', 'remove', 'duplicate'],
+  emits: ['head-pointerdown', 'port-pointerdown', 'port-dblclick', 'remove', 'duplicate'],
   data() { return { helpOpen: false }; },
+  methods: {
+    portDisabled(dir, name) { return !!(this.module.disabled && this.module.disabled[dir + ':' + name]); },
+  },
 });
 
 // =============================================================
@@ -945,7 +955,7 @@ const baseProps = {
   midiOutputs: { type: Object, default: () => new Map() },
   midiInputs:  { type: Object, default: () => new Map() },
 };
-const baseEmits = ['head-pointerdown', 'port-pointerdown', 'remove', 'duplicate', 'change', 'reroute'];
+const baseEmits = ['head-pointerdown', 'port-pointerdown', 'port-dblclick', 'remove', 'duplicate', 'change', 'reroute'];
 
 const ModuleClock = defineComponent({
   template: '#tmpl-clock',
@@ -1167,6 +1177,7 @@ const App = {
         id, type,
         x: x ?? 60, y: y ?? 60,
         params: { ...def.defaults(), ...(opts.params || {}) },
+        disabled: { ...(opts.disabled || {}) },
         state: {},
       });
       this.modules.push(m);
@@ -1252,13 +1263,23 @@ const App = {
 
     // ----- event propagation -----
     emit(m, port, event) {
+      if (m.disabled && m.disabled['out:' + port]) return;
       for (const c of this.cables) {
         if (c.from.mid !== m.id || c.from.port !== port) continue;
         const dst = this.modules.find(x => x.id === c.to.mid);
         if (!dst) continue;
+        if (dst.disabled && dst.disabled['in:' + c.to.port]) continue;
         const def = TYPES[dst.type];
         if (def.onInput) def.onInput(this, dst, c.to.port, event);
       }
+    },
+
+    togglePortDisabled(m, dir, name) {
+      const key = dir + ':' + name;
+      if (!m.disabled) m.disabled = {};
+      if (m.disabled[key]) delete m.disabled[key];
+      else m.disabled[key] = true;
+      this.save();
     },
 
     // ----- MIDI -----
@@ -1341,7 +1362,7 @@ const App = {
       return {
         bpm: this.transport.bpm,
         source: this.transport.source,
-        modules: this.modules.map(m => ({ id: m.id, type: m.type, x: m.x, y: m.y, params: JSON.parse(JSON.stringify(m.params)) })),
+        modules: this.modules.map(m => ({ id: m.id, type: m.type, x: m.x, y: m.y, params: JSON.parse(JSON.stringify(m.params)), disabled: { ...(m.disabled || {}) } })),
         cables: this.cables.map(c => ({ from: { ...c.from }, to: { ...c.to }, type: c.type })),
       };
     },
@@ -1363,7 +1384,7 @@ const App = {
       const droppedIds = new Set();
       for (const md of (data.modules || [])) {
         if (md.type === 'KEY') { droppedIds.add(md.id); continue; } // legacy: KEY module no longer exists
-        this.addModule(md.type, md.x, md.y, { id: md.id, params: md.params });
+        this.addModule(md.type, md.x, md.y, { id: md.id, params: md.params, disabled: md.disabled });
       }
       for (const c of (data.cables || [])) {
         if (droppedIds.has(c.from.mid) || droppedIds.has(c.to.mid)) continue;
