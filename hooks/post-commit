@@ -1,0 +1,22 @@
+#!/bin/bash
+# Stamp HEAD's short hash into the header of index.html and amend the commit.
+# Guard prevents the amend from re-triggering this hook.
+[ -n "$LAMBDA_HASH_STAMP" ] && exit 0
+
+set -e
+HASH=$(git rev-parse --short HEAD)
+ROOT=$(git rev-parse --show-toplevel)
+FILE="$ROOT/index.html"
+[ -f "$FILE" ] || exit 0
+
+# Only update if hash is missing or stale
+if grep -q "<span class=\"commit-hash\">$HASH</span>" "$FILE"; then
+  exit 0
+fi
+
+# Replace the existing <span class="commit-hash">…</span> contents
+sed -i.bak -E "s|<span class=\"commit-hash\">[^<]*</span>|<span class=\"commit-hash\">$HASH</span>|" "$FILE"
+rm -f "$FILE.bak"
+
+git add "$FILE"
+LAMBDA_HASH_STAMP=1 git commit --amend --no-edit >/dev/null
