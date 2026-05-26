@@ -221,7 +221,7 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
 <div>
   <!-- TOPBAR -->
   <div id="topbar">
-    <div class="logo">λ-SEQ <span class="commit-hash">2b9a75f</span></div>
+    <div class="logo">λ-SEQ <span class="commit-hash">004496d</span></div>
     <div class="sep"></div>
     <button :class="['play', { on: transport.playing }]" @click="togglePlay">
       {{ transport.playing ? '■ STOP' : '▶ PLAY' }}
@@ -244,8 +244,8 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
          @pointerdown.stop="selectedCableIdx = i"
          @dblclick="deleteCable(i)">
         <path class="cable-hit" :d="cablePaths[i]" />
-        <path :class="['cable', { selected: selectedCableIdx === i }]"
-              :stroke="SIGNAL_COLORS[c.type]"
+        <path :class="['cable', { selected: selectedCableIdx === i, muted: cableMuted(c) }]"
+              :stroke="cableMuted(c) ? '#5a5e6a' : SIGNAL_COLORS[c.type]"
               :d="cablePaths[i]" />
       </g>
       <path v-if="patching"
@@ -1280,6 +1280,13 @@ const App = {
       if (m.disabled[key]) delete m.disabled[key];
       else m.disabled[key] = true;
       this.save();
+    },
+
+    cableMuted(c) {
+      const src = this.modules.find(m => m.id === c.from.mid);
+      const dst = this.modules.find(m => m.id === c.to.mid);
+      return !!(src && src.disabled && src.disabled['out:' + c.from.port])
+          || !!(dst && dst.disabled && dst.disabled['in:'  + c.to.port]);
     },
 
     // ----- MIDI -----
