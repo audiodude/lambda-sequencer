@@ -1,6 +1,34 @@
 <!doctype html>
 <html lang="en">
   <head>
+    <!--
+      Third-party attribution (kept inside <head> so it survives EXPORT APP,
+      which serializes document.documentElement.outerHTML).
+
+      This app bundles Vue 3 (https://vuejs.org), inlined in the source below.
+
+        Vue (v3.5.34)
+        Copyright (c) 2018-present, Yuxi (Evan) You and Vue contributors
+        Released under the MIT License:
+
+        Permission is hereby granted, free of charge, to any person obtaining a copy
+        of this software and associated documentation files (the "Software"), to deal
+        in the Software without restriction, including without limitation the rights
+        to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+        copies of the Software, and to permit persons to whom the Software is
+        furnished to do so, subject to the following conditions:
+
+        The above copyright notice and this permission notice shall be included in
+        all copies or substantial portions of the Software.
+
+        THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+        IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+        FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+        AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+        LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+        OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+        SOFTWARE.
+    -->
     <meta charset="utf-8" />
     <title>λ-SEQ</title>
     <style>
@@ -136,11 +164,37 @@
       }
       #stage::-webkit-scrollbar-thumb:hover { background: var(--panel-hi); }
       #stage::-webkit-scrollbar-corner { background: var(--bg2); }
-      /* large pannable canvas — modules live here; scroll into the empty area */
+      /* pannable, zoomable canvas — modules live here; size is dynamic */
+      .canvas-wrap { position: relative; }
       .canvas {
-        position: relative;
-        width: 6000px;
-        height: 4000px;
+        position: absolute;
+        top: 0;
+        left: 0;
+        transform-origin: 0 0;
+      }
+      #topbar .zoom-ctrl {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+      #topbar .zoom-ctrl .zb {
+        width: 26px;
+        height: 26px;
+        padding: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 4px;
+        font: 600 16px/1 ui-monospace, monospace;
+      }
+      #topbar .zoom-ctrl .zb:hover { background: var(--panel-hi); }
+      #topbar .zoom-ctrl .zoom-pct {
+        min-width: 40px;
+        text-align: center;
+        font-size: 11px;
+        color: var(--dim);
+        cursor: pointer;
+        user-select: none;
       }
       .grid-bg {
         position: absolute;
@@ -776,6 +830,12 @@
           >
             {{ transport.playing ? '■ STOP' : '▶ PLAY' }}
           </button>
+          <div class="sep"></div>
+          <div class="zoom-ctrl">
+            <button class="zb" @click="zoomBy(-1)" title="Zoom out">−</button>
+            <span class="zoom-pct" @click="zoomReset" title="Reset zoom">{{ Math.round(zoom * 100) }}%</span>
+            <button class="zb" @click="zoomBy(1)" title="Zoom in">+</button>
+          </div>
           <div class="right">
             <button @click="saveStandalone">EXPORT APP</button>
             <button @click="exportPatch">SAVE PATCH</button>
@@ -793,7 +853,8 @@
 
         <!-- STAGE -->
         <div id="stage" ref="stage" @pointerdown="onStagePointerDown">
-          <div class="canvas" ref="canvas">
+          <div class="canvas-wrap" ref="canvasWrap" :style="{ width: (canvasW * zoom) + 'px', height: (canvasH * zoom) + 'px' }">
+          <div class="canvas" ref="canvas" :style="{ width: canvasW + 'px', height: canvasH + 'px', transform: 'scale(' + zoom + ')' }">
           <div class="grid-bg"></div>
           <svg
             id="cables"
@@ -838,6 +899,7 @@
             @change="save"
             @reroute="rerouteVersion++"
           />
+          </div>
           </div>
         </div>
 
@@ -2556,8 +2618,11 @@
             nextId: 1,
             selectedCableIdx: null,
             patching: null, // {dir,type,mid,port,start,cursor}
-            drag: null, // {m, sx, sy, ox, oy}
+            drag: null, // {m, gx, gy}
             rerouteVersion: 0, // bump to recompute cable paths
+            zoom: 1, // canvas zoom factor
+            canvasW: 2000, // dynamic unscaled canvas extent
+            canvasH: 1500,
             status: '— ready —',
             statusBad: false,
             helpVisible: false,
@@ -2634,6 +2699,7 @@
             if (type === 'CLOCK') nextTick(() => this.applyClockParams(m));
             if (this.transport.playing) this.panic();
             this.save();
+            this.updateCanvasExtent(true);
             return m;
           },
 
@@ -2646,6 +2712,7 @@
             );
             if (this.transport.playing) this.panic();
             this.save();
+            this.updateCanvasExtent(false);
           },
 
           duplicateModule(id) {
@@ -2657,10 +2724,11 @@
           },
 
           addAtCenter(type) {
-            // place at the center of the currently-scrolled view, in canvas coords
+            // place at the center of the currently-scrolled view, in unscaled canvas coords
             const stage = this.$refs.stage;
-            const x = stage.scrollLeft + stage.clientWidth / 2 - 110 + (Math.random() * 80 - 40);
-            const y = stage.scrollTop + stage.clientHeight / 2 - 80 + (Math.random() * 60 - 30);
+            const z = this.canvasScale();
+            const x = (stage.scrollLeft + stage.clientWidth / 2) / z - 110 + (Math.random() * 80 - 40);
+            const y = (stage.scrollTop + stage.clientHeight / 2) / z - 80 + (Math.random() * 60 - 30);
             this.addModule(type, Math.max(0, x), Math.max(0, y));
           },
 
@@ -2839,7 +2907,11 @@
             )
               return;
             e.preventDefault();
-            this.drag = { m, sx: e.clientX, sy: e.clientY, ox: m.x, oy: m.y };
+            // grab offset = pointer position (canvas coords) minus module origin
+            const c = this.clientToCanvas(e.clientX, e.clientY);
+            this.drag = { m, gx: c.x - m.x, gy: c.y - m.y };
+            this._ptr = { x: e.clientX, y: e.clientY };
+            this.startAutoScroll();
             document.addEventListener('pointermove', this._onDragMove);
             document.addEventListener('pointerup', this._onDragEnd, {
               once: true,
@@ -2860,6 +2932,8 @@
               start,
               cursor: { x: start.x, y: start.y },
             };
+            this._ptr = { x: e.clientX, y: e.clientY };
+            this.startAutoScroll();
             document.addEventListener('pointermove', this._onPatchMove);
             document.addEventListener('pointerup', this._onPatchEnd, {
               once: true,
@@ -2868,13 +2942,155 @@
 
           onStagePointerDown(e) {
             // clicking empty stage/canvas deselects any selected cable
+            const t = e.target;
             if (
-              e.target === this.$refs.stage ||
-              e.target === this.$refs.canvas ||
-              (e.target.classList && e.target.classList.contains('grid-bg'))
+              t === this.$refs.stage ||
+              t === this.$refs.canvas ||
+              t === this.$refs.canvasWrap ||
+              (t.classList && t.classList.contains('grid-bg'))
             ) {
               this.selectedCableIdx = null;
             }
+          },
+
+          // ----- canvas coords / zoom / autoscroll -----
+          // Actual rendered scale read from the DOM (rendered width / layout width),
+          // so it never lags behind this.zoom during a reactive update.
+          canvasScale() {
+            const el = this.$refs.canvas;
+            if (!el || !el.offsetWidth) return this.zoom || 1;
+            return el.getBoundingClientRect().width / el.offsetWidth;
+          },
+          clientToCanvas(cx, cy) {
+            const el = this.$refs.canvas;
+            if (!el) return { x: cx, y: cy };
+            const r = el.getBoundingClientRect();
+            const z = el.offsetWidth ? r.width / el.offsetWidth : this.zoom || 1;
+            return { x: (cx - r.left) / z, y: (cy - r.top) / z };
+          },
+          applyDragAt(cx, cy) {
+            const d = this.drag;
+            if (!d) return;
+            const c = this.clientToCanvas(cx, cy);
+            d.m.x = Math.max(0, c.x - d.gx);
+            d.m.y = Math.max(0, c.y - d.gy);
+            nextTick(() => {
+              this.rerouteVersion++;
+              this.updateCanvasExtent(true);
+            });
+          },
+          applyPatchAt(cx, cy) {
+            const p = this.patching;
+            if (!p) return;
+            const c = this.clientToCanvas(cx, cy);
+            p.cursor.x = c.x;
+            p.cursor.y = c.y;
+          },
+          updateCanvasExtent(grow) {
+            if (this._extentPending) return;
+            this._extentPending = true;
+            nextTick(() => {
+              this._extentPending = false;
+              const canvas = this.$refs.canvas;
+              const stage = this.$refs.stage;
+              if (!canvas || !stage) return;
+              let maxR = 0,
+                maxB = 0;
+              for (const el of canvas.querySelectorAll('.module')) {
+                maxR = Math.max(maxR, el.offsetLeft + el.offsetWidth);
+                maxB = Math.max(maxB, el.offsetTop + el.offsetHeight);
+              }
+              const z = this.zoom || 1;
+              // a little fixed headroom past the modules to pan/drop into (dragging
+              // to the edge auto-grows it further), floored to one screenful so the
+              // canvas always fills the viewport
+              const PAD = 320;
+              let w = Math.max(stage.clientWidth / z, maxR + PAD);
+              let h = Math.max(stage.clientHeight / z, maxB + PAD);
+              if (grow) {
+                w = Math.max(w, this.canvasW);
+                h = Math.max(h, this.canvasH);
+              }
+              this.canvasW = w;
+              this.canvasH = h;
+            });
+          },
+          startAutoScroll() {
+            if (this._autoRAF) return;
+            const loop = () => {
+              if (!this.drag && !this.patching) {
+                this._autoRAF = null;
+                return;
+              }
+              this.autoScrollStep();
+              this._autoRAF = requestAnimationFrame(loop);
+            };
+            this._autoRAF = requestAnimationFrame(loop);
+          },
+          stopAutoScroll() {
+            if (this._autoRAF) {
+              cancelAnimationFrame(this._autoRAF);
+              this._autoRAF = null;
+            }
+          },
+          autoScrollStep() {
+            const stage = this.$refs.stage;
+            const p = this._ptr;
+            if (!stage || !p) return;
+            const r = stage.getBoundingClientRect();
+            const EDGE = 56,
+              MAX = 24;
+            let dx = 0,
+              dy = 0;
+            if (p.x < r.left + EDGE)
+              dx = -MAX * Math.min(1, (r.left + EDGE - p.x) / EDGE);
+            else if (p.x > r.right - EDGE)
+              dx = MAX * Math.min(1, (p.x - (r.right - EDGE)) / EDGE);
+            if (p.y < r.top + EDGE)
+              dy = -MAX * Math.min(1, (r.top + EDGE - p.y) / EDGE);
+            else if (p.y > r.bottom - EDGE)
+              dy = MAX * Math.min(1, (p.y - (r.bottom - EDGE)) / EDGE);
+            if (!dx && !dy) return;
+            stage.scrollLeft += dx;
+            stage.scrollTop += dy;
+            // keep the dragged thing under the (stationary) pointer as the view moves
+            if (this.drag) this.applyDragAt(p.x, p.y);
+            else if (this.patching) this.applyPatchAt(p.x, p.y);
+          },
+          zoomBy(dir) {
+            const stage = this.$refs.stage;
+            const z0 = this.zoom;
+            const z1 = clamp(
+              Math.round(z0 * (dir > 0 ? 1.2 : 1 / 1.2) * 100) / 100,
+              0.3,
+              2,
+            );
+            if (z1 === z0) return;
+            // keep the viewport center fixed across the zoom
+            const cx = (stage.scrollLeft + stage.clientWidth / 2) / z0;
+            const cy = (stage.scrollTop + stage.clientHeight / 2) / z0;
+            this.zoom = z1;
+            this.updateCanvasExtent(false);
+            nextTick(() => {
+              stage.scrollLeft = cx * z1 - stage.clientWidth / 2;
+              stage.scrollTop = cy * z1 - stage.clientHeight / 2;
+              // recompute cable paths now that the transform is applied
+              this.rerouteVersion++;
+            });
+          },
+          zoomReset() {
+            const stage = this.$refs.stage;
+            const z0 = this.zoom;
+            if (z0 === 1) return;
+            const cx = (stage.scrollLeft + stage.clientWidth / 2) / z0;
+            const cy = (stage.scrollTop + stage.clientHeight / 2) / z0;
+            this.zoom = 1;
+            this.updateCanvasExtent(false);
+            nextTick(() => {
+              stage.scrollLeft = cx - stage.clientWidth / 2;
+              stage.scrollTop = cy - stage.clientHeight / 2;
+              this.rerouteVersion++;
+            });
           },
 
           // ----- save / load -----
@@ -2944,6 +3160,9 @@
               if (clk) clk.params.extInId = data.extClockInId;
             }
             nextTick(() => this.rerouteVersion++);
+            // fresh recompute of the canvas extent for the loaded patch
+            this._extentPending = false;
+            this.updateCanvasExtent(false);
           },
 
           bootDefault() {
@@ -3031,11 +3250,16 @@
             if (!portEl) return null;
             const jack = portEl.querySelector('.jack');
             const r = jack.getBoundingClientRect();
-            // origin is the canvas (scrolls with content), so coords are canvas-space
-            const sr = (this.$refs.canvas || stage).getBoundingClientRect();
+            // origin is the canvas (scrolls with content); divide out the ACTUAL
+            // rendered scale (from the DOM, not this.zoom) to get unscaled canvas
+            // coords matching the SVG/module coordinate system
+            const canvas = this.$refs.canvas || stage;
+            const sr = canvas.getBoundingClientRect();
+            const z =
+              canvas.offsetWidth ? sr.width / canvas.offsetWidth : this.zoom || 1;
             return {
-              x: r.left + r.width / 2 - sr.left,
-              y: r.top + r.height / 2 - sr.top,
+              x: (r.left + r.width / 2 - sr.left) / z,
+              y: (r.top + r.height / 2 - sr.top) / z,
             };
           },
 
@@ -3077,32 +3301,50 @@
               const port = el.closest('.port');
               if (port) return port;
             }
+            // fallback: nearest jack within a tolerance — jacks are small targets
+            // when zoomed out, so accept a near miss by rendered distance
+            const canvas = this.$refs.canvas;
+            if (canvas) {
+              let best = null,
+                bestD = 28;
+              for (const jack of canvas.querySelectorAll('.port .jack')) {
+                const r = jack.getBoundingClientRect();
+                const d = Math.hypot(
+                  r.left + r.width / 2 - x,
+                  r.top + r.height / 2 - y,
+                );
+                if (d < bestD) {
+                  bestD = d;
+                  best = jack.closest('.port');
+                }
+              }
+              if (best) return best;
+            }
             return null;
           },
 
           // ---- internal handlers (assigned as arrow fns at mount) ----
           _onDragMove(e) {
-            const d = this.drag;
-            if (!d) return;
-            d.m.x = Math.max(0, d.ox + (e.clientX - d.sx));
-            d.m.y = Math.max(0, d.oy + (e.clientY - d.sy));
-            // Bump on next tick so cablePaths re-reads DOM AFTER the module's style.left/top has patched.
-            nextTick(() => this.rerouteVersion++);
+            if (!this.drag) return;
+            this._ptr = { x: e.clientX, y: e.clientY };
+            this.applyDragAt(e.clientX, e.clientY);
           },
           _onDragEnd() {
             document.removeEventListener('pointermove', this._onDragMove);
+            this.stopAutoScroll();
             if (this.drag) this.save();
             this.drag = null;
+            this._extentPending = false;
+            this.updateCanvasExtent(false);
           },
           _onPatchMove(e) {
-            const p = this.patching;
-            if (!p) return;
-            const sr = this.$refs.canvas.getBoundingClientRect();
-            p.cursor.x = e.clientX - sr.left;
-            p.cursor.y = e.clientY - sr.top;
+            if (!this.patching) return;
+            this._ptr = { x: e.clientX, y: e.clientY };
+            this.applyPatchAt(e.clientX, e.clientY);
           },
           _onPatchEnd(e) {
             document.removeEventListener('pointermove', this._onPatchMove);
+            this.stopAutoScroll();
             const p = this.patching;
             this.patching = null;
             if (!p) return;
@@ -3182,7 +3424,10 @@
               this.togglePlay();
             }
           });
-          window.addEventListener('resize', () => this.rerouteVersion++);
+          window.addEventListener('resize', () => {
+            this.rerouteVersion++;
+            this.updateCanvasExtent(false);
+          });
 
           // load: embedded boot patch (standalone snapshot) > saved localStorage > default
           let saved = null;
