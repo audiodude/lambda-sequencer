@@ -1035,7 +1035,7 @@ const ModuleStep = defineComponent({
   template: '#tmpl-step',
   components: { ModuleFrame },
   props: baseProps, emits: baseEmits,
-  data() { return { editIndex: -1, editValue: '', editOrig: 60 }; },
+  data() { return { editIndex: -1, editValue: '', editOrig: 60, lastPitch: 60 }; },
   computed: {
     visibleCount() { return Math.max(16, Math.ceil(this.module.params.len / 16) * 16); },
     visibleSteps() {
@@ -1051,20 +1051,31 @@ const ModuleStep = defineComponent({
   watch: {
     'module.params.len'() { this.ensureSteps(); },
   },
-  mounted() { this.ensureSteps(); },
+  mounted() {
+    this.ensureSteps();
+    // seed last pitch from the latest active step so it carries over a reload
+    const on = this.module.params.steps.filter(s => s.on);
+    if (on.length) this.lastPitch = on[on.length - 1].pitch;
+  },
   methods: {
     noteName: midiToNoteName,
     ensureSteps() {
       const arr = this.module.params.steps;
       while (arr.length < this.visibleCount) arr.push({ on: false, pitch: 60, vel: 100 });
     },
-    toggleStep(i) { const s = this.module.params.steps[i]; s.on = !s.on; this.$emit('change'); },
+    toggleStep(i) {
+      const s = this.module.params.steps[i];
+      s.on = !s.on;
+      if (s.on) s.pitch = this.lastPitch;
+      this.$emit('change');
+    },
     clearStep(i)  { this.module.params.steps[i].on = false; this.$emit('change'); },
     pitchStep(i, e) {
       const s = this.module.params.steps[i];
       const delta = e.deltaY < 0 ? 1 : -1;
       s.pitch = clamp(s.pitch + (e.shiftKey ? 12 * delta : delta), 0, 127);
       if (!s.on) s.on = true;
+      this.lastPitch = s.pitch;
       if (this.editIndex === i) this.editValue = midiToNoteName(s.pitch);
       this.$emit('change');
     },
@@ -1087,7 +1098,7 @@ const ModuleStep = defineComponent({
       const i = this.editIndex;
       const s = this.module.params.steps[i];
       const midi = parseNoteName(this.editValue);
-      if (midi != null) { s.pitch = midi; s.on = true; }
+      if (midi != null) { s.pitch = midi; s.on = true; this.lastPitch = midi; }
       else { s.pitch = this.editOrig; }
       this.editIndex = -1;
       this.$emit('change');
@@ -1636,6 +1647,13 @@ const App = {
     // keyboard
     document.addEventListener('keydown', e => {
       const tag = (e.target.tagName || '').toUpperCase();
+      // Enter in any text input commits the value (live model is already in
+      // sync) and drops focus. The note-input's own handler runs first; this
+      // just guarantees the blur.
+      if (e.key === 'Enter' && (tag === 'INPUT' || tag === 'TEXTAREA')) {
+        e.target.blur();
+        return;
+      }
       if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
       if ((e.key === 'Backspace' || e.key === 'Delete') && this.selectedCableIdx != null) {
         e.preventDefault(); this.deleteCable(this.selectedCableIdx);
