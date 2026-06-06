@@ -578,6 +578,19 @@
         font-size: 10px;
       }
 
+      /* DIV ratio: top number over bottom number, like a fraction */
+      .module.DIV .ratio {
+        display: inline-flex;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 3px;
+      }
+      .module.DIV .ratio-bar {
+        height: 2px;
+        background: var(--dim);
+        border-radius: 1px;
+      }
+
       .module.STEP {
         min-width: 540px;
       }
@@ -835,7 +848,7 @@
       <div>
         <!-- TOPBAR -->
         <div id="topbar">
-          <div class="logo">λ-SEQ <span class="commit-hash">a2602b9</span></div>
+          <div class="logo">λ-SEQ <span class="commit-hash">b0c53a7</span></div>
           <div class="sep"></div>
           <button
             :class="['play', { on: transport.playing }]"
@@ -1391,17 +1404,26 @@
       >
         <div class="row">
           <label>RATIO</label>
-          <num-knob
-            :min="1"
-            :max="16"
-            v-model.number="module.params.ratio"
-            @change="$emit('change')"
-          ></num-knob>
-          <span style="color: var(--dim); font-size: 10px">÷ N</span>
+          <div class="ratio">
+            <num-knob
+              :min="1"
+              :max="1000"
+              v-model.number="module.params.num"
+              @change="$emit('change')"
+            ></num-knob>
+            <div class="ratio-bar"></div>
+            <num-knob
+              :min="1"
+              :max="1000"
+              v-model.number="module.params.den"
+              @change="$emit('change')"
+            ></num-knob>
+          </div>
         </div>
         <template #help>
-          Passes one out of every <b>N</b> incoming clock pulses through.<br />
-          Use it to derive slower clocks from a master <b>CLOCK</b>.
+          Re-times the incoming clock to <b>clock × (top ÷ bottom)</b>.<br />
+          Bottom &gt; top divides (slower); top &gt; bottom multiplies (faster).
+          Both are 1–1000.
         </template>
       </module-frame>
     </template>
@@ -1912,11 +1934,34 @@
         DIV: {
           inputs: [{ name: 'clk', type: 'clock' }],
           outputs: [{ name: 'clk', type: 'clock' }],
-          defaults: () => ({ ratio: 2 }),
+          defaults: () => ({ num: 1, den: 2 }),
           onInput(ctx, m, port, ev) {
             if (port !== 'clk' || ev.kind !== 'clock') return;
-            m.state.counter = (m.state.counter || 0) + 1;
-            if (m.state.counter % m.params.ratio === 0) ctx.emit(m, 'clk', ev);
+            const num = clamp(m.params.num | 0, 1, 1000);
+            const den = clamp(m.params.den | 0, 1, 1000);
+            const ratio = num / den; // output rate = input rate * (num/den)
+            // measure the incoming pulse period to space multiplied pulses
+            const prev = m.state.lastTime;
+            m.state.lastTime = ev.time;
+            const period =
+              prev != null && ev.time > prev
+                ? ev.time - prev
+                : secondsPerPulse(ctx.transport.bpm);
+            const outPeriod = period / ratio;
+            // (re)sync the output phase on the first pulse or after a stop/start
+            let next = m.state.nextOut;
+            if (next == null || next < ev.time - 1e-9) next = ev.time;
+            // emit every output pulse landing in this input window [t, t+period)
+            let guard = 0;
+            while (next < ev.time + period - 1e-9 && guard++ < 4096) {
+              ctx.emit(m, 'clk', {
+                kind: 'clock',
+                time: next,
+                idx: (m.state.outIdx = (m.state.outIdx || 0) + 1),
+              });
+              next += outPeriod;
+            }
+            m.state.nextOut = next;
           },
         },
         TRANSPOSE: {
@@ -2700,12 +2745,17 @@
             }
             const id = opts.id || this.nextId++;
             if (opts.id && opts.id >= this.nextId) this.nextId = opts.id + 1;
+            let inParams = opts.params || {};
+            // back-compat: old DIV stored a single `ratio` (÷N) → num/den fraction
+            if (type === 'DIV' && inParams.ratio != null && inParams.num == null) {
+              inParams = { num: 1, den: inParams.ratio };
+            }
             const m = reactive({
               id,
               type,
               x: x ?? 60,
               y: y ?? 60,
-              params: { ...def.defaults(), ...(opts.params || {}) },
+              params: { ...def.defaults(), ...inParams },
               disabled: { ...(opts.disabled || {}) },
               state: {},
               glow: false,
@@ -2784,6 +2834,10 @@
               if (m.type === 'STEP' || m.type === 'EUCLID') {
                 m.state.pos = -1;
                 m.state.tickCounter = 0;
+              }
+              if (m.type === 'DIV') {
+                m.state.nextOut = undefined;
+                m.state.lastTime = undefined;
               }
             }
             if (this.transport.source === 'internal')
