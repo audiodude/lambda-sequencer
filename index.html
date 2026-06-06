@@ -848,7 +848,7 @@
       <div>
         <!-- TOPBAR -->
         <div id="topbar">
-          <div class="logo">λ-SEQ <span class="commit-hash">b0c53a7</span></div>
+          <div class="logo">λ-SEQ <span class="commit-hash">f1c4af5</span></div>
           <div class="sep"></div>
           <button
             :class="['play', { on: transport.playing }]"
@@ -1154,7 +1154,7 @@
         :module="module"
         title="CLOCK"
         :inputs="[]"
-        :outputs="[{name:'clk',type:'clock'}]"
+        :outputs="[{name:'1',type:'clock'},{name:'1/2',type:'clock'},{name:'1/4',type:'clock'},{name:'1/8',type:'clock'},{name:'1/16',type:'clock'}]"
         @head-pointerdown="$emit('head-pointerdown', $event)"
         @port-pointerdown="$emit('port-pointerdown', $event)"
         @port-dblclick="$emit('port-dblclick', $event)"
@@ -1205,9 +1205,11 @@
           {{ module.params.mode === 'ext' ? 'EXT' : module.params.bpm + ' BPM'
           }}
         </div>
-        <div class="sub">1/16 pulses</div>
+        <div class="sub">note-division outs</div>
         <template #help>
-          Master clock. Emits one pulse per 1/16 note on <b>clk</b>.<br />
+          Master clock with one output per note value
+          (<b>1</b>, <b>1/2</b>, <b>1/4</b>, <b>1/8</b>, <b>1/16</b>), all
+          phase-aligned. At 120&nbsp;BPM <b>1/4</b> pulses twice a second.<br />
           <b>BPM</b> runs the internal scheduler at the chosen tempo.
           <b>EXT</b> chases MIDI clock from the selected input device.
         </template>
@@ -1271,12 +1273,6 @@
           </div>
         </template>
         <div class="row">
-          <label>DIV</label>
-          <select v-model.number="module.params.div" @change="$emit('change')">
-            <option :value="1">1/16</option>
-            <option :value="2">1/8</option>
-            <option :value="4">1/4</option>
-          </select>
           <label>GATE</label>
           <num-knob
             :min="0.05"
@@ -1299,8 +1295,9 @@
           drag to paint cells on or off. Right-click to clear, scroll-wheel over
           a cell to nudge the pitch (shift = octave). Click a note name to type
           a value — enter or click away to keep, esc to revert.<br />
-          <b>DIV</b> sets the step length, <b>GATE</b> is the note duration as a
-          fraction of the step, <b>LEN</b> is the pattern length (1–64; shift
+          Advances one step per <b>clk</b> tick (patch a <b>DIV</b> module
+          before it to change the rate). <b>GATE</b> is the note duration as a
+          fraction of the step; <b>LEN</b> is the pattern length (1–64; shift
           click the arrows or wheel to step by 4) — the yellow tick above the
           last active step marks where it ends.
         </template>
@@ -1851,7 +1848,13 @@
       const TYPES = {
         CLOCK: {
           inputs: [],
-          outputs: [{ name: 'clk', type: 'clock' }],
+          outputs: [
+            { name: '1', type: 'clock' },
+            { name: '1/2', type: 'clock' },
+            { name: '1/4', type: 'clock' },
+            { name: '1/8', type: 'clock' },
+            { name: '1/16', type: 'clock' },
+          ],
           defaults: () => ({ mode: 'internal', bpm: 120, extInId: '' }),
           onInput() {},
         },
@@ -1864,14 +1867,20 @@
               pitch: 60,
               vel: 100,
             })),
-            div: 1,
             gateLen: 0.5,
             len: 16,
           }),
           onInput(ctx, m, port, ev) {
             if (port !== 'clk' || !ctx.transport.playing) return;
-            m.state.tickCounter = (m.state.tickCounter || 0) + 1;
-            if ((m.state.tickCounter - 1) % m.params.div !== 0) return;
+            // advance one step per incoming clock tick
+            const prev = m.state.lastTime;
+            m.state.lastTime = ev.time;
+            // gate is a fraction of the actual step interval, so it stays right
+            // even when fed from a divided/multiplied clock
+            const stepDur =
+              prev != null && ev.time > prev
+                ? ev.time - prev
+                : secondsPerPulse(ctx.transport.bpm);
             m.state.pos = ((m.state.pos ?? -1) + 1) % m.params.len;
             const step = m.params.steps[m.state.pos];
             if (step && step.on) {
@@ -1880,10 +1889,7 @@
                 time: ev.time,
                 pitch: step.pitch,
                 vel: step.vel,
-                gateLen:
-                  m.params.gateLen *
-                  secondsPerPulse(ctx.transport.bpm) *
-                  m.params.div,
+                gateLen: m.params.gateLen * stepDur,
               });
             }
           },
@@ -2153,12 +2159,12 @@
         ],
         cables: [
           {
-            from: { mid: 1, port: 'clk' },
+            from: { mid: 1, port: '1/16' },
             to: { mid: 2, port: 'clk' },
             type: 'clock',
           },
           {
-            from: { mid: 1, port: 'clk' },
+            from: { mid: 1, port: '1/16' },
             to: { mid: 5, port: 'clk' },
             type: 'clock',
           },
@@ -2833,7 +2839,7 @@
             for (const m of this.modules) {
               if (m.type === 'STEP' || m.type === 'EUCLID') {
                 m.state.pos = -1;
-                m.state.tickCounter = 0;
+                m.state.lastTime = undefined;
               }
               if (m.type === 'DIV') {
                 m.state.nextOut = undefined;
@@ -2866,10 +2872,16 @@
           },
 
           fireMasterPulse(t, idx) {
-            // tickIdx already incremented by caller; CLOCK components flash via a watcher on transport.tickIdx
+            // idx counts 1/16 pulses from 0; each note output fires on its
+            // aligned multiple so all divisions share the downbeat.
+            const ev = { kind: 'clock', time: t, idx };
             for (const m of this.modules)
               if (m.type === 'CLOCK') {
-                this.emit(m, 'clk', { kind: 'clock', time: t, idx });
+                this.emit(m, '1/16', ev);
+                if (idx % 2 === 0) this.emit(m, '1/8', ev);
+                if (idx % 4 === 0) this.emit(m, '1/4', ev);
+                if (idx % 8 === 0) this.emit(m, '1/2', ev);
+                if (idx % 16 === 0) this.emit(m, '1', ev);
               }
           },
 
@@ -3225,8 +3237,14 @@
             for (const c of data.cables || []) {
               if (droppedIds.has(c.from.mid) || droppedIds.has(c.to.mid))
                 continue;
+              const from = { ...c.from };
+              // back-compat: CLOCK's single 'clk' output is now '1/16'
+              if (from.port === 'clk') {
+                const src = this.modules.find((m) => m.id === from.mid);
+                if (src && src.type === 'CLOCK') from.port = '1/16';
+              }
               this.cables.push({
-                from: { ...c.from },
+                from,
                 to: { ...c.to },
                 type: c.type,
               });
@@ -3454,6 +3472,15 @@
               )
             )
               return;
+            // a clock input takes a single clock — replace any existing cable to it
+            if (p.type === 'clock') {
+              const before = this.cables.length;
+              this.cables = this.cables.filter(
+                (c) => !(c.to.mid === inMid && c.to.port === inPort),
+              );
+              if (this.cables.length < before)
+                this.setStatus('replaced clock input');
+            }
             this.cables.push({
               from: { mid: outMid, port: outPort },
               to: { mid: inMid, port: inPort },
