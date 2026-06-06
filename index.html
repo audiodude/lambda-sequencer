@@ -430,6 +430,7 @@
         letter-spacing: 0.05em;
         flex: 0 0 auto;
         min-width: 38px;
+        text-align: right;
       }
       .module input,
       .module select {
@@ -593,6 +594,26 @@
 
       .module.STEP {
         min-width: 540px;
+      }
+      .module.STEP .x2-btn {
+        background: var(--bg2);
+        color: var(--text);
+        border: 1px solid var(--line);
+        border-radius: 4px;
+        padding: 6px 9px;
+        font: 600 13px/1 ui-monospace, monospace;
+        cursor: pointer;
+        transition:
+          background 0.1s,
+          border-color 0.1s;
+      }
+      .module.STEP .x2-btn:hover {
+        background: var(--panel-hi);
+        border-color: var(--accent);
+      }
+      .module.STEP .x2-btn:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
       }
       .module.STEP .grid16 {
         display: grid;
@@ -848,7 +869,7 @@
       <div>
         <!-- TOPBAR -->
         <div id="topbar">
-          <div class="logo">λ-SEQ <span class="commit-hash">f1c4af5</span></div>
+          <div class="logo">λ-SEQ <span class="commit-hash">2843a9a</span></div>
           <div class="sep"></div>
           <button
             :class="['play', { on: transport.playing }]"
@@ -1255,6 +1276,8 @@
                   autocomplete="off"
                   @keydown.enter.prevent="commitEdit"
                   @keydown.esc.prevent="cancelEdit"
+                  @keydown.up.prevent="pitchStep(editIndex, { deltaY: -1, shiftKey: $event.shiftKey })"
+                  @keydown.down.prevent="pitchStep(editIndex, { deltaY: 1, shiftKey: $event.shiftKey })"
                   @blur="commitEdit"
                 />
               </div>
@@ -1273,6 +1296,13 @@
           </div>
         </template>
         <div class="row">
+          <label>VEL</label>
+          <num-knob
+            :min="1"
+            :max="127"
+            v-model.number="module.params.vel"
+            @change="$emit('change')"
+          ></num-knob>
           <label>GATE</label>
           <num-knob
             :min="0.05"
@@ -1289,6 +1319,14 @@
             v-model.number="module.params.len"
             @change="$emit('change')"
           ></num-knob>
+          <button
+            class="x2-btn"
+            :disabled="module.params.len >= 64"
+            @click="doubleLength"
+            title="Double the length and duplicate the pattern"
+          >
+            ×2
+          </button>
         </div>
         <template #help>
           Step sequencer driven by <b>clk</b>. Click a cell to toggle it, then
@@ -1299,7 +1337,8 @@
           before it to change the rate). <b>GATE</b> is the note duration as a
           fraction of the step; <b>LEN</b> is the pattern length (1–64; shift
           click the arrows or wheel to step by 4) — the yellow tick above the
-          last active step marks where it ends.
+          last active step marks where it ends. <b>×2</b> doubles the length and
+          duplicates the current pattern into the new half.
         </template>
       </module-frame>
     </template>
@@ -1867,6 +1906,7 @@
               pitch: 60,
               vel: 100,
             })),
+            vel: 100,
             gateLen: 0.5,
             len: 16,
           }),
@@ -1888,7 +1928,7 @@
                 kind: 'note',
                 time: ev.time,
                 pitch: step.pitch,
-                vel: step.vel,
+                vel: m.params.vel,
                 gateLen: m.params.gateLen * stepDur,
               });
             }
@@ -2395,6 +2435,24 @@
             const arr = this.module.params.steps;
             while (arr.length < this.visibleCount)
               arr.push({ on: false, pitch: 60, vel: 100 });
+          },
+          // double the pattern length, copying the existing steps into the new half
+          doubleLength() {
+            const oldLen = this.module.params.len;
+            const newLen = Math.min(oldLen * 2, 64);
+            if (newLen <= oldLen) return; // already at max
+            const steps = this.module.params.steps;
+            const src = [];
+            for (let k = 0; k < oldLen; k++) {
+              const s = steps[k] || { on: false, pitch: 60, vel: 100 };
+              src.push({ on: s.on, pitch: s.pitch, vel: s.vel });
+            }
+            this.module.params.len = newLen;
+            this.ensureSteps();
+            for (let k = 0; k < newLen - oldLen; k++) {
+              Object.assign(steps[oldLen + k], src[k]);
+            }
+            this.$emit('change');
           },
           // Click-drag painting: the cell you press down on flips, and that new
           // state becomes the paint value for any cells the drag passes over.
