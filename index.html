@@ -185,8 +185,31 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
 .module.STEP .labels .label {
   text-align: center; font-size: 9px; color: var(--note); font-weight: 700;
   letter-spacing: 0.04em; line-height: 1.2; height: 12px;
+  position: relative;
 }
+.module.STEP .labels .label.on { cursor: pointer; }
+.module.STEP .labels .label.on:hover { text-shadow: 0 0 6px var(--note); }
 .module.STEP .labels .label.dim { opacity: 0.3; }
+.module.STEP .labels .label.editing { overflow: visible; z-index: 30; }
+
+.module.STEP .note-edit {
+  position: absolute; left: 50%; top: -4px; transform: translate(-50%, -100%);
+  background: var(--panel-hi); border: 1px solid var(--note);
+  border-radius: 4px; padding: 4px; z-index: 40;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.55);
+}
+.module.STEP .note-edit::after {
+  content: ''; position: absolute; left: 50%; bottom: -5px; transform: translateX(-50%);
+  border-left: 5px solid transparent; border-right: 5px solid transparent;
+  border-top: 5px solid var(--note);
+}
+.module.STEP .note-edit input {
+  width: 44px; background: var(--bg2); color: var(--note);
+  border: 1px solid var(--line); border-radius: 2px;
+  font: 700 11px/1.2 ui-monospace, monospace; text-align: center;
+  letter-spacing: 0.06em; text-transform: uppercase; padding: 3px 2px; outline: none;
+}
+.module.STEP .note-edit input:focus { border-color: var(--note); }
 
 .module.EUCLID .ring-wrap { display:flex; justify-content:center; }
 .module.EUCLID .ring { display:block; }
@@ -401,8 +424,18 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
     <template v-for="(chunk, ci) in rowChunks" :key="ci">
       <div class="grid16 labels">
         <div v-for="(s, j) in chunk" :key="j"
-             :class="['label', { on: s.on, dim: (ci*16 + j) >= module.params.len }]">
-          <span v-if="s.on">{{ noteName(s.pitch) }}</span>
+             :class="['label', { on: s.on, dim: (ci*16 + j) >= module.params.len, editing: editIndex === (ci*16 + j) }]"
+             @click="s.on && startEdit(ci*16 + j)"
+             @wheel.prevent="pitchStep(ci*16 + j, $event)">
+          <span v-if="s.on && editIndex !== (ci*16 + j)">{{ noteName(s.pitch) }}</span>
+          <div v-if="editIndex === (ci*16 + j)" class="note-edit"
+               @click.stop @wheel.prevent.stop="editWheel($event)">
+            <input class="note-input" type="text" v-model="editValue" maxlength="4"
+                   spellcheck="false" autocomplete="off"
+                   @keydown.enter.prevent="commitEdit"
+                   @keydown.esc.prevent="cancelEdit"
+                   @blur="commitEdit">
+          </div>
         </div>
       </div>
       <div class="grid16">
@@ -428,8 +461,9 @@ html, body { margin:0; height:100%; background: var(--bg); color: var(--text); f
     </div>
     <template #help>
       Step sequencer driven by <b>clk</b>. Click a cell to toggle it,
-      right-click to clear, scroll-wheel over a cell to nudge its pitch
-      (shift = octave).<br>
+      right-click to clear, scroll-wheel over a cell (or its note name) to
+      nudge the pitch (shift = octave). Click a note name to type a value
+      (e.g. <b>C4</b>, <b>F#3</b>) — enter or click away to keep, esc to revert.<br>
       <b>DIV</b> sets the step length, <b>GATE</b> is the note duration as a
       fraction of the step, <b>LEN</b> is the pattern length (1–64).
     </template>
@@ -661,6 +695,18 @@ function secondsPerPulse(bpm) { return 60 / bpm / 4; }
 function midiToNoteName(n) {
   if (n < 0 || n > 127) return '?';
   return ROOTS[n % 12] + (Math.floor(n / 12) - 1);
+}
+const NOTE_LETTERS = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+// Parse a note name like "C4", "f#3", "Bb5" → MIDI number, or null if invalid.
+// First char must be a note letter (A–G), then an optional #/b, then an octave digit.
+function parseNoteName(str) {
+  const m = String(str).trim().match(/^([A-Ga-g])([#b]?)(-?\d+)$/);
+  if (!m) return null;
+  let semis = NOTE_LETTERS[m[1].toUpperCase()];
+  if (m[2] === '#') semis += 1;
+  else if (m[2] === 'b') semis -= 1;
+  const midi = (parseInt(m[3], 10) + 1) * 12 + semis;
+  return (midi >= 0 && midi <= 127) ? midi : null;
 }
 function euclidPattern(hits, steps, rot) {
   hits = clamp(hits | 0, 0, steps | 0);
@@ -989,6 +1035,7 @@ const ModuleStep = defineComponent({
   template: '#tmpl-step',
   components: { ModuleFrame },
   props: baseProps, emits: baseEmits,
+  data() { return { editIndex: -1, editValue: '', editOrig: 60 }; },
   computed: {
     visibleCount() { return Math.max(16, Math.ceil(this.module.params.len / 16) * 16); },
     visibleSteps() {
@@ -1018,6 +1065,37 @@ const ModuleStep = defineComponent({
       const delta = e.deltaY < 0 ? 1 : -1;
       s.pitch = clamp(s.pitch + (e.shiftKey ? 12 * delta : delta), 0, 127);
       if (!s.on) s.on = true;
+      if (this.editIndex === i) this.editValue = midiToNoteName(s.pitch);
+      this.$emit('change');
+    },
+    startEdit(i) {
+      const s = this.module.params.steps[i];
+      this.editIndex = i;
+      this.editOrig = s.pitch;
+      this.editValue = midiToNoteName(s.pitch);
+      this.$nextTick(() => {
+        const el = this.$el.querySelector('.note-input');
+        if (el) { el.focus(); el.select(); }
+      });
+    },
+    editWheel(e) {
+      if (this.editIndex < 0) return;
+      this.pitchStep(this.editIndex, e);
+    },
+    commitEdit() {
+      if (this.editIndex < 0) return;
+      const i = this.editIndex;
+      const s = this.module.params.steps[i];
+      const midi = parseNoteName(this.editValue);
+      if (midi != null) { s.pitch = midi; s.on = true; }
+      else { s.pitch = this.editOrig; }
+      this.editIndex = -1;
+      this.$emit('change');
+    },
+    cancelEdit() {
+      if (this.editIndex < 0) return;
+      this.module.params.steps[this.editIndex].pitch = this.editOrig;
+      this.editIndex = -1;
       this.$emit('change');
     },
   },
