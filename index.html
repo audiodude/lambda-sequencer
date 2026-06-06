@@ -249,6 +249,19 @@
         box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
         user-select: none;
       }
+      /* soft yellow glow on a freshly-added module: hold ~2.4s, then fade out */
+      .module.glowing { animation: module-glow 2s ease forwards; }
+      @keyframes module-glow {
+        0%,
+        60% {
+          box-shadow: 0 0 26px 5px rgba(255, 216, 74, 0.55),
+            0 6px 20px rgba(0, 0, 0, 0.5);
+        }
+        100% {
+          box-shadow: 0 0 0 0 rgba(255, 216, 74, 0),
+            0 6px 20px rgba(0, 0, 0, 0.5);
+        }
+      }
       .module .head {
         display: flex;
         justify-content: space-between;
@@ -822,7 +835,7 @@
       <div>
         <!-- TOPBAR -->
         <div id="topbar">
-          <div class="logo">λ-SEQ <span class="commit-hash">569a210</span></div>
+          <div class="logo">λ-SEQ <span class="commit-hash">a2602b9</span></div>
           <div class="sep"></div>
           <button
             :class="['play', { on: transport.playing }]"
@@ -1031,7 +1044,7 @@
     <!-- shared frame used by every module type -->
     <template id="tmpl-frame">
       <div
-        :class="['module', module.type]"
+        :class="['module', module.type, { glowing: module.glow }]"
         :data-mid="module.id"
         :style="{ left: module.x + 'px', top: module.y + 'px' }"
       >
@@ -1358,7 +1371,8 @@
           Every active position fires a note at <b>PITCH</b>/<b>VEL</b> with the
           given <b>GATE</b> length when <b>clk</b> ticks.<br />
           Patch a note source into <b>pitch</b> to override <b>PITCH</b>; the
-          latest incoming pitch is held until a new one arrives.
+          latest incoming pitch is held until a new one arrives. See also the
+          <b>DIV</b> module for changing the effective note spacings.
         </template>
       </module-frame>
     </template>
@@ -2694,6 +2708,7 @@
               params: { ...def.defaults(), ...(opts.params || {}) },
               disabled: { ...(opts.disabled || {}) },
               state: {},
+              glow: false,
             });
             this.modules.push(m);
             if (type === 'CLOCK') nextTick(() => this.applyClockParams(m));
@@ -2729,7 +2744,15 @@
             const z = this.canvasScale();
             const x = (stage.scrollLeft + stage.clientWidth / 2) / z - 110 + (Math.random() * 80 - 40);
             const y = (stage.scrollTop + stage.clientHeight / 2) / z - 80 + (Math.random() * 60 - 30);
-            this.addModule(type, Math.max(0, x), Math.max(0, y));
+            const m = this.addModule(type, Math.max(0, x), Math.max(0, y));
+            if (m) this.glowModule(m);
+          },
+          // soft yellow glow on a freshly-added module so it's easy to spot
+          glowModule(m) {
+            m.glow = true;
+            setTimeout(() => {
+              m.glow = false;
+            }, 2000);
           },
 
           // ----- clock control (CLOCK module owns mode/bpm) -----
