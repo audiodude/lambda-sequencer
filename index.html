@@ -933,7 +933,7 @@
       <div>
         <!-- TOPBAR -->
         <div id="topbar">
-          <div class="logo">λ-SEQ <span class="commit-hash">cfc8ce7</span></div>
+          <div class="logo">λ-SEQ <span class="commit-hash">afddba4</span></div>
           <div class="sep"></div>
           <button
             :class="['play', { on: transport.playing }]"
@@ -975,7 +975,7 @@
             <g
               v-for="(c, i) in cables"
               :key="i"
-              @pointerdown.stop="selectedCableIdx = i"
+              @pointerdown.stop="selectCable(i)"
               @dblclick="deleteCable(i)"
             >
               <path class="cable-hit" :d="cablePaths[i]" />
@@ -3121,6 +3121,13 @@
               this.selectedModuleIds = [id];
             }
             this.selectedCableIdx = null;
+          },
+
+          // selecting a cable clears any module selection, so Delete only
+          // removes the wire (modules take priority in the keydown handler)
+          selectCable(i) {
+            this.selectedCableIdx = i;
+            this.selectedModuleIds = [];
           },
 
           deleteSelectedModules() {
