@@ -277,6 +277,10 @@
       .module .head .title {
         opacity: 0.75;
       }
+      .module.selected .head .title {
+        opacity: 1;
+        color: var(--accent);
+      }
       .module .head .actions {
         display: flex;
         align-items: center;
@@ -386,6 +390,7 @@
         text-decoration: line-through;
       }
       .module .jack {
+        position: relative;
         width: 14px;
         height: 14px;
         border-radius: 50%;
@@ -399,8 +404,17 @@
           box-shadow 0.12s,
           background 0.08s;
       }
-      .module .jack.connected {
+      /* small inner dot marks a jack that has a cable on it */
+      .module .jack.connected::after {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
         background: currentColor;
+        transform: translate(-50%, -50%);
       }
       .module .jack:hover {
         transform: scale(1.2);
@@ -557,6 +571,41 @@
         background: var(--panel-hi);
         color: var(--note);
         box-shadow: inset 0 0 0 1px var(--note);
+      }
+
+      /* CLOCK: controls fill the left; the note-division outs are a column of
+         jacks down the RIGHT side, side by side (instead of a tall separate
+         row that leaves the module half-empty). */
+      .module.CLOCK {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: stretch;
+      }
+      .module.CLOCK .head {
+        flex: 0 0 100%;
+      }
+      .module.CLOCK .body {
+        order: 1;
+        flex: 1 1 auto;
+        min-width: 150px;
+      }
+      .module.CLOCK .ports-row {
+        order: 2;
+        flex: 0 0 auto;
+        padding: 8px 10px;
+        border-bottom: none;
+        border-left: 1px solid var(--line);
+      }
+      .module.CLOCK .help-panel {
+        order: 3;
+        flex: 0 0 100%;
+      }
+      .module.CLOCK .col.in {
+        display: none;
+      }
+      .module.CLOCK .col.out {
+        height: 100%;
+        justify-content: space-between;
       }
 
       .module.CLOCK .big {
@@ -860,6 +909,21 @@
         cursor: pointer;
         color: var(--dim);
       }
+      #help a {
+        color: var(--accent);
+        text-decoration: none;
+      }
+      #help a:hover {
+        text-decoration: underline;
+      }
+      #help .credit {
+        margin-top: 10px;
+        padding-top: 8px;
+        border-top: 1px solid var(--line);
+        font-size: 10px;
+        opacity: 0.85;
+        line-height: 1.5;
+      }
     </style>
   </head>
   <body>
@@ -869,7 +933,7 @@
       <div>
         <!-- TOPBAR -->
         <div id="topbar">
-          <div class="logo">λ-SEQ <span class="commit-hash">2843a9a</span></div>
+          <div class="logo">λ-SEQ <span class="commit-hash">cfc8ce7</span></div>
           <div class="sep"></div>
           <button
             :class="['play', { on: transport.playing }]"
@@ -935,13 +999,14 @@
             :key="m.id"
             :is="componentFor(m.type)"
             :module="m"
+            :class="{ selected: selectedModuleIds.includes(m.id) }"
             :transport="transport"
             :midi-outputs="midiOutputs"
             :midi-inputs="midiInputs"
             @head-pointerdown="beginNodeDrag(m, $event)"
             @port-pointerdown="beginPatch(m, $event.port, $event.dir, $event.type, $event.event)"
             @port-dblclick="togglePortDisabled(m, $event.dir, $event.port)"
-            @remove="removeModule(m.id)"
+            @remove="onRemoveClick(m.id)"
             @duplicate="duplicateModule(m.id)"
             @change="save"
             @reroute="rerouteVersion++"
@@ -985,10 +1050,6 @@
             <span style="color: var(--scale)">●</span> scl (scale)
           </div>
           <div style="margin-top: 6px">
-            <b>STEP:</b> click cells to toggle, scroll-wheel over a cell to
-            change pitch.
-          </div>
-          <div style="margin-top: 6px">
             In each module's title bar: <b>?</b> shows module-specific help, the
             overlapping-squares icon duplicates the module,
             <span style="color: var(--bad)">✕</span> removes it.
@@ -996,7 +1057,7 @@
           <div style="margin-top: 6px">
             <kbd>Space</kbd> play/stop · drag module headers to move
           </div>
-          <div style="margin-top: 6px">Patches autosave to localStorage.</div>
+          <div style="margin-top: 6px">Patches autosave to localStorage (this browser).</div>
           <div style="margin-top: 6px">
             <b>SAVE PATCH</b> / <b>LOAD PATCH</b>: download or load the current
             patch as JSON.
@@ -1005,6 +1066,21 @@
             <b>EXPORT APP</b>: download a self-contained HTML snapshot of the
             app with the current patch baked in — runs offline, no network
             needed.
+          </div>
+          <div class="credit">
+            by
+            <a href="https://travisbriggs.com" target="_blank" rel="noopener"
+              >Travis Briggs</a
+            >
+            · MIT License<br />
+            source on
+            <a
+              href="https://github.com/audiodude/lambda-sequencer"
+              target="_blank"
+              rel="noopener"
+              >GitHub</a
+            >
+            ↗
           </div>
         </div>
 
@@ -1136,11 +1212,11 @@
             <div
               v-for="p in inputs"
               :key="p.name"
-              :class="['port', { disabled: portDisabled('in', p.name) }]"
+              :class="['port', { disabled: portDisabled('in', p.name) || inDead(p.name) }]"
               @pointerdown="$emit('port-pointerdown', { port: p.name, dir: 'in',  type: p.type, event: $event })"
             >
               <div
-                :class="['jack', p.type]"
+                :class="['jack', p.type, { connected: portConnected('in', p.name) }]"
                 @dblclick.stop="$emit('port-dblclick', { port: p.name, dir: 'in' })"
               ></div>
               <div class="lbl">{{ p.name }}</div>
@@ -1150,12 +1226,12 @@
             <div
               v-for="p in outputs"
               :key="p.name"
-              :class="['port', { disabled: portDisabled('out', p.name) }]"
+              :class="['port', { disabled: portDisabled('out', p.name) || outDead(p.name) }]"
               @pointerdown="$emit('port-pointerdown', { port: p.name, dir: 'out', type: p.type, event: $event })"
             >
               <div class="lbl">{{ p.name }}</div>
               <div
-                :class="['jack', p.type]"
+                :class="['jack', p.type, { connected: portConnected('out', p.name) }]"
                 @dblclick.stop="$emit('port-dblclick', { port: p.name, dir: 'out' })"
               ></div>
             </div>
@@ -2127,103 +2203,222 @@
       // DEFAULT PATCH (exported from the live app — re-export to update)
       // =============================================================
       const DEFAULT_PATCH = {
-        bpm: 120,
-        source: 'internal',
-        modules: [
+        "bpm": 120,
+        "source": "internal",
+        "modules": [
           {
-            id: 1,
-            type: 'CLOCK',
-            x: 20,
-            y: 40,
-            params: { mode: 'internal', bpm: 120, extInId: '-325153073' },
+            "id": 1,
+            "type": "CLOCK",
+            "x": 20,
+            "y": 40,
+            "params": {
+              "mode": "internal",
+              "bpm": 120,
+              "extInId": ""
+            },
+            "disabled": {}
           },
           {
-            id: 2,
-            type: 'STEP',
-            x: 260,
-            y: 40,
-            params: {
-              steps: [
-                { on: true, pitch: 48, vel: 110 },
-                { on: false, pitch: 60, vel: 100 },
-                { on: false, pitch: 62, vel: 90 },
-                { on: true, pitch: 59, vel: 100 },
-                { on: true, pitch: 60, vel: 105 },
-                { on: false, pitch: 60, vel: 100 },
-                { on: false, pitch: 62, vel: 90 },
-                { on: true, pitch: 67, vel: 115 },
-                { on: true, pitch: 64, vel: 110 },
-                { on: false, pitch: 60, vel: 100 },
-                { on: true, pitch: 52, vel: 90 },
-                { on: false, pitch: 60, vel: 100 },
-                { on: false, pitch: 64, vel: 105 },
-                { on: false, pitch: 65, vel: 95 },
-                { on: true, pitch: 62, vel: 100 },
-                { on: true, pitch: 60, vel: 120 },
+            "id": 2,
+            "type": "STEP",
+            "x": 507.55019050674844,
+            "y": 37.23366047277173,
+            "params": {
+              "steps": [
+                {
+                  "on": true,
+                  "pitch": 48,
+                  "vel": 110
+                },
+                {
+                  "on": false,
+                  "pitch": 60,
+                  "vel": 100
+                },
+                {
+                  "on": false,
+                  "pitch": 62,
+                  "vel": 90
+                },
+                {
+                  "on": true,
+                  "pitch": 59,
+                  "vel": 100
+                },
+                {
+                  "on": true,
+                  "pitch": 60,
+                  "vel": 105
+                },
+                {
+                  "on": false,
+                  "pitch": 60,
+                  "vel": 100
+                },
+                {
+                  "on": false,
+                  "pitch": 62,
+                  "vel": 90
+                },
+                {
+                  "on": true,
+                  "pitch": 67,
+                  "vel": 115
+                },
+                {
+                  "on": true,
+                  "pitch": 64,
+                  "vel": 110
+                },
+                {
+                  "on": false,
+                  "pitch": 60,
+                  "vel": 100
+                },
+                {
+                  "on": true,
+                  "pitch": 52,
+                  "vel": 90
+                },
+                {
+                  "on": false,
+                  "pitch": 60,
+                  "vel": 100
+                },
+                {
+                  "on": false,
+                  "pitch": 64,
+                  "vel": 105
+                },
+                {
+                  "on": false,
+                  "pitch": 65,
+                  "vel": 95
+                },
+                {
+                  "on": true,
+                  "pitch": 62,
+                  "vel": 100
+                },
+                {
+                  "on": true,
+                  "pitch": 60,
+                  "vel": 120
+                }
               ],
-              div: 1,
-              gateLen: 0.5,
-              len: 16,
+              "vel": 100,
+              "gateLen": 0.5,
+              "len": 16,
+              "div": 1
             },
-          },
-          { id: 3, type: 'QUANT', x: 816.4375, y: 201.81640625, params: {} },
-          {
-            id: 4,
-            type: 'MIDIOUT',
-            x: 1070.66796875,
-            y: 201.57421875,
-            params: { deviceId: '464023706', channel: 1 },
+            "disabled": {}
           },
           {
-            id: 5,
-            type: 'EUCLID',
-            x: 21.9921875,
-            y: 268.94921875,
-            params: {
-              hits: 5,
-              steps: 16,
-              rot: 0,
-              pitch: 36,
-              vel: 110,
-              gateLen: 0.5,
-              div: 1,
+            "id": 3,
+            "type": "QUANT",
+            "x": 849.8533271866858,
+            "y": 256.9907505531176,
+            "params": {
+              "mode": "snap"
             },
+            "disabled": {}
           },
           {
-            id: 6,
-            type: 'MIDIOUT',
-            x: 436.46875,
-            y: 268.015625,
-            params: { deviceId: '464023706', channel: 2 },
+            "id": 4,
+            "type": "MIDIOUT",
+            "x": 853.9591296892614,
+            "y": 462.10010326096545,
+            "params": {
+              "deviceId": "464023706",
+              "channel": 1
+            },
+            "disabled": {}
           },
+          {
+            "id": 5,
+            "type": "EUCLID",
+            "x": 94.11586919973598,
+            "y": 319.6204840701267,
+            "params": {
+              "hits": 5,
+              "steps": 16,
+              "rot": 0,
+              "pitch": 36,
+              "vel": 110,
+              "gateLen": 0.5,
+              "div": 1
+            },
+            "disabled": {}
+          },
+          {
+            "id": 6,
+            "type": "MIDIOUT",
+            "x": 511.1208357678556,
+            "y": 354.6386666253034,
+            "params": {
+              "deviceId": "464023706",
+              "channel": 2
+            },
+            "disabled": {}
+          }
         ],
-        cables: [
+        "cables": [
           {
-            from: { mid: 1, port: '1/16' },
-            to: { mid: 2, port: 'clk' },
-            type: 'clock',
+            "from": {
+              "mid": 1,
+              "port": "1/16"
+            },
+            "to": {
+              "mid": 2,
+              "port": "clk"
+            },
+            "type": "clock"
           },
           {
-            from: { mid: 1, port: '1/16' },
-            to: { mid: 5, port: 'clk' },
-            type: 'clock',
+            "from": {
+              "mid": 1,
+              "port": "1/16"
+            },
+            "to": {
+              "mid": 5,
+              "port": "clk"
+            },
+            "type": "clock"
           },
           {
-            from: { mid: 3, port: 'out' },
-            to: { mid: 4, port: 'in' },
-            type: 'note',
+            "from": {
+              "mid": 3,
+              "port": "out"
+            },
+            "to": {
+              "mid": 4,
+              "port": "in"
+            },
+            "type": "note"
           },
           {
-            from: { mid: 5, port: 'note' },
-            to: { mid: 6, port: 'in' },
-            type: 'note',
+            "from": {
+              "mid": 5,
+              "port": "note"
+            },
+            "to": {
+              "mid": 6,
+              "port": "in"
+            },
+            "type": "note"
           },
           {
-            from: { mid: 2, port: 'note' },
-            to: { mid: 3, port: 'in' },
-            type: 'note',
-          },
-        ],
+            "from": {
+              "mid": 2,
+              "port": "note"
+            },
+            "to": {
+              "mid": 3,
+              "port": "in"
+            },
+            "type": "note"
+          }
+        ]
       };
 
       // =============================================================
@@ -2310,6 +2505,11 @@
           'remove',
           'duplicate',
         ],
+        inject: {
+          seqCables: { default: null },
+          seqOutDead: { default: null },
+          seqInDead: { default: null },
+        },
         data() {
           return { helpOpen: false };
         },
@@ -2318,6 +2518,30 @@
             return !!(
               this.module.disabled && this.module.disabled[dir + ':' + name]
             );
+          },
+          // true when a cable lands on this module's port (in: as a target,
+          // out: as a source) — drives the small "connected" dot on the jack
+          portConnected(dir, name) {
+            const inj = this.seqCables;
+            const cables = inj && inj.value ? inj.value : Array.isArray(inj) ? inj : [];
+            const id = this.module.id;
+            return cables.some((c) =>
+              dir === 'in'
+                ? c.to.mid === id && c.to.port === name
+                : c.from.mid === id && c.from.port === name,
+            );
+          },
+          // output jack is "dead" when all its cables feed disabled inputs
+          outDead(name) {
+            return this.seqOutDead
+              ? this.seqOutDead(this.module.id, name)
+              : false;
+          },
+          // input jack is "dead" when all its cables come from disabled outputs
+          inDead(name) {
+            return this.seqInDead
+              ? this.seqInDead(this.module.id, name)
+              : false;
           },
         },
       });
@@ -2717,6 +2941,41 @@
         template: '#tmpl-app',
         components: { ModuleFrame, ...COMPONENT_FOR },
 
+        // expose the cable list to every ModuleFrame so each jack can show
+        // whether it's connected. computed() keeps the link live across the
+        // reassignments in removeModule/deleteCable.
+        provide() {
+          return {
+            seqCables: computed(() => this.cables),
+            // true when an output port has cables and every one of them lands
+            // on a disabled input — i.e. the whole jack is effectively dead.
+            seqOutDead: (mid, port) => {
+              let any = false;
+              for (const c of this.cables) {
+                if (c.from.mid !== mid || c.from.port !== port) continue;
+                any = true;
+                const dst = this.modules.find((x) => x.id === c.to.mid);
+                if (!(dst && dst.disabled && dst.disabled['in:' + c.to.port]))
+                  return false;
+              }
+              return any;
+            },
+            // mirror: an input port is dead when every cable feeding it comes
+            // from a disabled output.
+            seqInDead: (mid, port) => {
+              let any = false;
+              for (const c of this.cables) {
+                if (c.to.mid !== mid || c.to.port !== port) continue;
+                any = true;
+                const src = this.modules.find((x) => x.id === c.from.mid);
+                if (!(src && src.disabled && src.disabled['out:' + c.from.port]))
+                  return false;
+              }
+              return any;
+            },
+          };
+        },
+
         data() {
           return {
             ROOTS,
@@ -2740,6 +2999,7 @@
             cables: reactive([]),
             nextId: 1,
             selectedCableIdx: null,
+            selectedModuleIds: [],
             patching: null, // {dir,type,mid,port,start,cursor}
             drag: null, // {m, gx, gy}
             rerouteVersion: 0, // bump to recompute cable paths
@@ -2839,9 +3099,47 @@
             this.cables = this.cables.filter(
               (c) => c.from.mid !== id && c.to.mid !== id,
             );
+            this.selectedModuleIds = this.selectedModuleIds.filter(
+              (x) => x !== id,
+            );
             if (this.transport.playing) this.panic();
             this.save();
             this.updateCanvasExtent(false);
+          },
+
+          // click on a module head: select it. Shift toggles it in/out of the
+          // current multi-selection; a plain click selects just that module.
+          selectModule(id, additive) {
+            if (additive) {
+              const i = this.selectedModuleIds.indexOf(id);
+              if (i >= 0) this.selectedModuleIds.splice(i, 1);
+              else this.selectedModuleIds.push(id);
+            } else if (!this.selectedModuleIds.includes(id)) {
+              // plain click on an unselected module selects only it; clicking one
+              // that's already part of a multi-selection keeps the group (so the
+              // whole selection can be dragged together)
+              this.selectedModuleIds = [id];
+            }
+            this.selectedCableIdx = null;
+          },
+
+          deleteSelectedModules() {
+            const ids = this.selectedModuleIds.slice();
+            this.selectedModuleIds = [];
+            ids.forEach((id) => this.removeModule(id));
+          },
+
+          // ✕ button: if the module is part of a multi-selection, delete the
+          // whole selection; otherwise just delete that module.
+          onRemoveClick(id) {
+            if (
+              this.selectedModuleIds.length > 1 &&
+              this.selectedModuleIds.includes(id)
+            ) {
+              this.deleteSelectedModules();
+            } else {
+              this.removeModule(id);
+            }
           },
 
           duplicateModule(id) {
@@ -3054,9 +3352,20 @@
             )
               return;
             e.preventDefault();
-            // grab offset = pointer position (canvas coords) minus module origin
+            this.selectModule(m.id, e.shiftKey);
+            // drag moves the whole selection together; ensure the grabbed module
+            // is included even if a shift-click just toggled it off. Each item
+            // stores its own grab offset (pointer minus its origin) so they all
+            // translate by the same pointer delta.
+            const ids = this.selectedModuleIds.includes(m.id)
+              ? this.selectedModuleIds.slice()
+              : [m.id];
             const c = this.clientToCanvas(e.clientX, e.clientY);
-            this.drag = { m, gx: c.x - m.x, gy: c.y - m.y };
+            const items = ids
+              .map((id) => this.modules.find((mm) => mm.id === id))
+              .filter(Boolean)
+              .map((mm) => ({ m: mm, gx: c.x - mm.x, gy: c.y - mm.y }));
+            this.drag = { m, items };
             this._ptr = { x: e.clientX, y: e.clientY };
             this.startAutoScroll();
             document.addEventListener('pointermove', this._onDragMove);
@@ -3097,6 +3406,7 @@
               (t.classList && t.classList.contains('grid-bg'))
             ) {
               this.selectedCableIdx = null;
+              this.selectedModuleIds = [];
             }
           },
 
@@ -3119,8 +3429,19 @@
             const d = this.drag;
             if (!d) return;
             const c = this.clientToCanvas(cx, cy);
-            d.m.x = Math.max(0, c.x - d.gx);
-            d.m.y = Math.max(0, c.y - d.gy);
+            // clamp the group as a whole so its relative layout is preserved at
+            // the left/top edges (clamp each module independently and modules at
+            // the edge would bunch up against ones that still have room)
+            let shiftX = 0,
+              shiftY = 0;
+            for (const it of d.items) {
+              shiftX = Math.min(shiftX, c.x - it.gx);
+              shiftY = Math.min(shiftY, c.y - it.gy);
+            }
+            for (const it of d.items) {
+              it.m.x = c.x - it.gx - shiftX;
+              it.m.y = c.y - it.gy - shiftY;
+            }
             nextTick(() => {
               this.rerouteVersion++;
               this.updateCanvasExtent(true);
@@ -3576,6 +3897,12 @@
             if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA')
               return;
             if (
+              (e.key === 'Backspace' || e.key === 'Delete') &&
+              this.selectedModuleIds.length
+            ) {
+              e.preventDefault();
+              this.deleteSelectedModules();
+            } else if (
               (e.key === 'Backspace' || e.key === 'Delete') &&
               this.selectedCableIdx != null
             ) {

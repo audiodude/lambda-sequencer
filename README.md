@@ -1,10 +1,10 @@
 # λ-SEQ
 
-Browser-based modular MIDI sequencer. Single-file Vue 3 app — open `index.html` and go.
+Browser-based modular MIDI sequencer. Single-file Vue 3 app. Double-click/open `index.html` and go.
 
 ## Development
 
-Serve the directory with any static server (`python3 -m http.server` works fine) and open it in a browser with WebMIDI support (Chrome / Edge).
+**For development only:** Serve the directory with any static server (`python3 -m http.server` works fine) and open it in a browser with WebMIDI support (Chrome / Edge). This is not necessary to simply use Lambda Sequencer, you can just double-click index.html in that case.
 
 ## EXPORT APP
 
