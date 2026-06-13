@@ -1025,7 +1025,7 @@
       <div>
         <!-- TOPBAR -->
         <div id="topbar">
-          <div class="logo">λ-SEQ <span class="commit-hash">ea5adf0</span></div>
+          <div class="logo">λ-SEQ <span class="commit-hash">c98cea1</span></div>
           <div class="sep"></div>
           <button
             :class="['play', { on: transport.playing }]"
@@ -3606,10 +3606,13 @@
           },
 
           onExtClockTick() {
-            this.transport.extClockCount++;
+            // Fire the downbeat on the FIRST clock after Start (count 0), not the
+            // sixth — test before incrementing so the sequence lands on the DAW's
+            // beat grid instead of a 16th-note late.
             if (this.transport.extClockCount % TICKS_PER_PULSE === 0) {
               this.fireMasterPulse(nowSec(), this.transport.tickIdx++);
             }
+            this.transport.extClockCount++;
           },
 
           panic() {
