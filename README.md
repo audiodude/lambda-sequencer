@@ -22,6 +22,12 @@ Note: WebMIDI requires a secure context. `file://` works in Chrome on macOS, but
 
 The two adjacent buttons are **SAVE PATCH** (downloads the current patch as JSON) and **LOAD PATCH** (loads one back in).
 
+## Device remapping
+
+Patches reference MIDI devices by **name** so they stay portable across machines (WebMIDI port ids differ per machine/browser). On load, λ-SEQ resolves each name to a live port. If a name can't be found, it prompts you to map it to one of your devices — pick a target once and every module that used that name is remapped.
+
+Caveat: renaming a device in the OS won't be picked up until you fully restart the browser (Chrome caches the MIDI list per process and ignores renames). Routing is unaffected — it's keyed to the device id, not the name.
+
 ## Post-commit hook
 
 The repo ships a post-commit hook in `hooks/` that stamps the current short commit hash into the page header. To activate it on a fresh clone, run once:

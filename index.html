@@ -924,6 +924,98 @@
         opacity: 0.85;
         line-height: 1.5;
       }
+
+      /* device-mapping prompt */
+      .modal-backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 100;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(0, 0, 0, 0.6);
+      }
+      .modal {
+        width: min(440px, calc(100vw - 40px));
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+        padding: 18px 20px;
+        color: var(--text);
+        font-size: 13px;
+      }
+      .modal-title {
+        font-weight: 700;
+        font-size: 14px;
+        color: var(--accent);
+        margin-bottom: 6px;
+      }
+      .modal-sub {
+        color: var(--dim);
+        font-size: 12px;
+        line-height: 1.5;
+        margin: 0 0 14px;
+      }
+      .modal-row {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+        margin-bottom: 12px;
+      }
+      .modal-wanted {
+        font-size: 12px;
+      }
+      .modal-count {
+        font-size: 11px;
+        color: var(--dim);
+      }
+      .modal-tag {
+        display: inline-block;
+        font-size: 9px;
+        letter-spacing: 0.06em;
+        color: var(--dim);
+        border: 1px solid var(--line);
+        border-radius: 3px;
+        padding: 1px 5px;
+        margin-right: 6px;
+        vertical-align: middle;
+      }
+      .modal-row select {
+        background: var(--bg2);
+        color: var(--text);
+        border: 1px solid var(--line);
+        border-radius: 5px;
+        padding: 5px 7px;
+        font-size: 12px;
+      }
+      .modal-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+        margin-top: 16px;
+      }
+      .modal-actions .btn {
+        background: var(--panel-hi);
+        color: var(--text);
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 6px 14px;
+        font-size: 12px;
+        cursor: pointer;
+      }
+      .modal-actions .btn:hover {
+        background: var(--line);
+      }
+      .modal-actions .btn.primary {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #1a1020;
+        font-weight: 600;
+      }
+      .modal-actions .btn.primary:hover {
+        filter: brightness(1.08);
+      }
     </style>
   </head>
   <body>
@@ -933,7 +1025,7 @@
       <div>
         <!-- TOPBAR -->
         <div id="topbar">
-          <div class="logo">λ-SEQ <span class="commit-hash">afddba4</span></div>
+          <div class="logo">λ-SEQ <span class="commit-hash">ea5adf0</span></div>
           <div class="sep"></div>
           <button
             :class="['play', { on: transport.playing }]"
@@ -1091,6 +1183,49 @@
           style="display: none"
           @change="importPatch"
         />
+
+        <!-- DEVICE MAPPING PROMPT — shown when a loaded patch names MIDI
+             devices that aren't present on this machine -->
+        <div
+          v-if="deviceMapPrompt"
+          class="modal-backdrop"
+          @click.self="dismissDeviceMap"
+        >
+          <div class="modal">
+            <div class="modal-title">Map MIDI devices</div>
+            <p class="modal-sub">
+              This patch uses MIDI
+              {{ deviceMapPrompt.items.length > 1 ? 'devices' : 'a device' }}
+              that {{ deviceMapPrompt.items.length > 1 ? "aren't" : "isn't" }}
+              on this machine. Pick a device to map
+              {{ deviceMapPrompt.items.length > 1 ? 'each' : 'it' }} to, or leave
+              unmapped.
+            </p>
+            <div
+              v-for="it in deviceMapPrompt.items"
+              :key="it.wantedName"
+              class="modal-row"
+            >
+              <div class="modal-wanted">
+                <span class="modal-tag">{{ kindLabel(it) }}</span>
+                “{{ it.wantedName }}”
+                <span v-if="it.members.length > 1" class="modal-count"
+                  >· {{ it.members.length }} modules</span
+                >
+              </div>
+              <select v-model="it.chosen">
+                <option value="">(leave unmapped)</option>
+                <option v-for="name in mapTargets(it)" :key="name" :value="name">
+                  {{ name }}
+                </option>
+              </select>
+            </div>
+            <div class="modal-actions">
+              <button class="btn" @click="dismissDeviceMap">Skip</button>
+              <button class="btn primary" @click="applyDeviceMap">Map devices</button>
+            </div>
+          </div>
+        </div>
       </div>
     </template>
 
@@ -1277,7 +1412,7 @@
         <div class="row" v-if="module.params.mode === 'ext'">
           <select
             v-model="module.params.extInId"
-            @change="onSrcChange"
+            @change="pickExtInput"
             title="External MIDI clock input"
             style="flex: 1"
           >
@@ -1764,7 +1899,7 @@
           <select
             v-model="module.params.deviceId"
             style="flex: 1; min-width: 0"
-            @change="$emit('change')"
+            @change="pickDevice"
           >
             <option value="">(no device)</option>
             <option v-for="[id, p] in midiOutputs" :key="id" :value="id">
@@ -1970,7 +2105,12 @@
             { name: '1/8', type: 'clock' },
             { name: '1/16', type: 'clock' },
           ],
-          defaults: () => ({ mode: 'internal', bpm: 120, extInId: '' }),
+          defaults: () => ({
+            mode: 'internal',
+            bpm: 120,
+            extInId: '',
+            extInName: '',
+          }),
           onInput() {},
         },
         STEP: {
@@ -2175,7 +2315,7 @@
         MIDIOUT: {
           inputs: [{ name: 'in', type: 'note' }],
           outputs: [],
-          defaults: () => ({ deviceId: '', channel: 1 }),
+          defaults: () => ({ deviceId: '', channel: 1, deviceName: '' }),
           onInput(ctx, m, port, ev) {
             if (port !== 'in' || ev.kind !== 'note') return;
             const out = ctx.midi.outputs.get(m.params.deviceId);
@@ -2598,6 +2738,13 @@
           },
         },
         methods: {
+          // capture the chosen input's NAME so the patch stays portable across
+          // machines (WebMIDI ids are browser-assigned; names resolve on load)
+          pickExtInput() {
+            const p = this.midiInputs.get(this.module.params.extInId);
+            this.module.params.extInName = p ? p.name : '';
+            this.onSrcChange();
+          },
           onSrcChange() {
             this.$emit('change');
             this.$root.applyClockParams(this.module);
@@ -2919,6 +3066,15 @@
         components: { ModuleFrame },
         props: baseProps,
         emits: baseEmits,
+        methods: {
+          // capture the chosen device's NAME alongside its id so the patch
+          // re-binds by name on machines where the id differs (see reconcileDevices)
+          pickDevice() {
+            const p = this.midiOutputs.get(this.module.params.deviceId);
+            this.module.params.deviceName = p ? p.name : '';
+            this.$emit('change');
+          },
+        },
       });
 
       const COMPONENT_FOR = {
@@ -3010,6 +3166,9 @@
             statusBad: false,
             helpVisible: false,
             activeNotes: [],
+            // prompt shown when a loaded patch names devices we can't find:
+            // { items: [{ moduleId, kind:'out'|'in', wantedName, chosen }] }
+            deviceMapPrompt: null,
             _statusT: null,
             _scheduleT: null,
           };
@@ -3302,15 +3461,135 @@
             this.midi.inputs = new Map([...this.midi.access.inputs.entries()]);
             for (const i of this.midi.inputs.values())
               i.onmidimessage = (ev) => this.onMIDIMessage(ev);
-            // reconcile selected device ids
-            const clk = this.modules.find((m) => m.type === 'CLOCK');
-            if (
-              clk &&
-              clk.params.extInId &&
-              !this.midi.inputs.has(clk.params.extInId)
-            )
-              clk.params.extInId = '';
+            // bind device ids from stored names (portable across machines)
+            this.reconcileDevices();
             this.rerouteVersion++;
+            this.checkUnmappedDevices();
+          },
+
+          // Keep each module's device id + stored name in sync with the live
+          // ports. The LIVE port wins whenever the stored id still resolves: we
+          // refresh the stored name from it, so a device renamed in the OS (same
+          // id) is reflected rather than showing the old cached name. Only when
+          // the id no longer resolves do we fall back to matching by the stored
+          // name (portable across machines, where ids differ).
+          // NOTE: a pure rename only shows up after Chrome refreshes its WebMIDI
+          // port list (it caches names for the life of a MIDIAccess and does not
+          // always fire statechange on rename) — a page reload guarantees it.
+          reconcileDevices() {
+            if (!this.midi.outputs || !this.midi.inputs) return;
+            const findByName = (map, name) => {
+              for (const [id, p] of map) if (p.name === name) return id;
+              return null;
+            };
+            const sync = (map, mod, idKey, nameKey) => {
+              const cur = mod.params[idKey] && map.get(mod.params[idKey]);
+              if (cur) {
+                mod.params[nameKey] = cur.name; // id still valid → trust live name
+              } else if (mod.params[nameKey]) {
+                const id = findByName(map, mod.params[nameKey]);
+                if (id) mod.params[idKey] = id; // id stale → rebind by name
+              }
+            };
+            for (const m of this.modules) {
+              if (m.type === 'MIDIOUT')
+                sync(this.midi.outputs, m, 'deviceId', 'deviceName');
+              else if (m.type === 'CLOCK')
+                sync(this.midi.inputs, m, 'extInId', 'extInName');
+            }
+          },
+
+          // Collect device names a patch asked for that we couldn't resolve, and
+          // (if there are real ports to map onto) open the mapping prompt. Names
+          // We re-offer every time (no "don't nag" memory): any device still
+          // unmapped after a load or device change pops the prompt again.
+          // Prompts are grouped by the wanted device NAME, so mapping one name
+          // remaps every module that referenced it (a clock that wants the name
+          // on an input and MIDI OUTs that want it on an output are one group;
+          // each member resolves the chosen name to a port of its own kind).
+          checkUnmappedDevices() {
+            if (this.deviceMapPrompt) return;
+            const groups = new Map(); // wantedName -> group
+            const add = (name, kind, id) => {
+              let g = groups.get(name);
+              if (!g) {
+                g = { wantedName: name, kinds: [], members: [], chosen: '' };
+                groups.set(name, g);
+              }
+              if (!g.kinds.includes(kind)) g.kinds.push(kind);
+              g.members.push({ id, kind });
+            };
+            for (const m of this.modules) {
+              if (
+                m.type === 'MIDIOUT' &&
+                m.params.deviceName &&
+                !this.midi.outputs.has(m.params.deviceId) &&
+                this.midi.outputs.size
+              )
+                add(m.params.deviceName, 'out', m.id);
+              else if (
+                m.type === 'CLOCK' &&
+                m.params.mode === 'ext' &&
+                m.params.extInName &&
+                !this.midi.inputs.has(m.params.extInId) &&
+                this.midi.inputs.size
+              )
+                add(m.params.extInName, 'in', m.id);
+            }
+            const items = [...groups.values()];
+            if (items.length) this.deviceMapPrompt = { items };
+          },
+
+          // candidate device NAMES a group can map to (union over the port kinds
+          // the group spans — outputs for MIDI OUT members, inputs for CLOCK)
+          mapTargets(it) {
+            const names = new Set();
+            if (it.kinds.includes('out'))
+              for (const p of this.midi.outputs.values()) names.add(p.name);
+            if (it.kinds.includes('in'))
+              for (const p of this.midi.inputs.values()) names.add(p.name);
+            return [...names];
+          },
+
+          kindLabel(it) {
+            return it.kinds
+              .map((k) => (k === 'in' ? 'CLOCK IN' : 'MIDI OUT'))
+              .join(' + ');
+          },
+
+          applyDeviceMap() {
+            if (!this.deviceMapPrompt) return;
+            const idByName = (map, name) => {
+              for (const [id, p] of map) if (p.name === name) return id;
+              return null;
+            };
+            for (const it of this.deviceMapPrompt.items) {
+              if (!it.chosen) continue; // left unmapped — re-offered next time
+              for (const mem of it.members) {
+                const m = this.modules.find((x) => x.id === mem.id);
+                if (!m) continue;
+                if (mem.kind === 'out') {
+                  const id = idByName(this.midi.outputs, it.chosen);
+                  if (id) {
+                    m.params.deviceId = id;
+                    m.params.deviceName = it.chosen;
+                  }
+                } else {
+                  const id = idByName(this.midi.inputs, it.chosen);
+                  if (id) {
+                    m.params.extInId = id;
+                    m.params.extInName = it.chosen;
+                  }
+                }
+              }
+            }
+            this.deviceMapPrompt = null;
+            this.rerouteVersion++;
+            this.save();
+          },
+
+          dismissDeviceMap() {
+            this.deviceMapPrompt = null;
           },
 
           onMIDIMessage(ev) {
@@ -3641,6 +3920,13 @@
               if (clk) clk.params.extInId = data.extClockInId;
             }
             nextTick(() => this.rerouteVersion++);
+            // if MIDI is already up (e.g. LOAD button mid-session), bind device
+            // names now and prompt for any we can't resolve; otherwise the first
+            // refreshMIDI after initMIDI handles it.
+            if (this.midi.access) {
+              this.reconcileDevices();
+              this.checkUnmappedDevices();
+            }
             // fresh recompute of the canvas extent for the loaded patch
             this._extentPending = false;
             this.updateCanvasExtent(false);
