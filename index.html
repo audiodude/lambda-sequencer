@@ -1025,7 +1025,7 @@
       <div>
         <!-- TOPBAR -->
         <div id="topbar">
-          <div class="logo">λ-SEQ <span class="commit-hash">b318cf6</span></div>
+          <div class="logo">λ-SEQ <span class="commit-hash">51c138b</span></div>
           <div class="sep"></div>
           <button
             :class="['play', { on: transport.playing }]"
@@ -3245,7 +3245,6 @@
             });
             this.modules.push(m);
             if (type === 'CLOCK') nextTick(() => this.applyClockParams(m));
-            if (this.transport.playing) this.panic();
             this.save();
             this.updateCanvasExtent(true);
             return m;
@@ -3261,7 +3260,9 @@
             this.selectedModuleIds = this.selectedModuleIds.filter(
               (x) => x !== id,
             );
-            if (this.transport.playing) this.panic();
+            // No panic() here: every note-off is pre-scheduled at send time, so
+            // editing the patch mid-playback can't strand notes — and a panic
+            // would cut every currently-ringing note (audible drop-outs).
             this.save();
             this.updateCanvasExtent(false);
           },
@@ -4049,7 +4050,6 @@
           deleteCable(i) {
             this.cables.splice(i, 1);
             if (this.selectedCableIdx === i) this.selectedCableIdx = null;
-            if (this.transport.playing) this.panic();
             this.save();
           },
 
@@ -4166,7 +4166,6 @@
               const def = TYPES[src.type];
               if (def && def.prime) def.prime(this, src);
             }
-            if (this.transport.playing) this.panic();
             this.save();
           },
         },
