@@ -1,0 +1,1061 @@
+{
+  "bpm": 120,
+  "source": "external",
+  "modules": [
+    {
+      "id": 1,
+      "type": "CLOCK",
+      "x": 9.087320187737816,
+      "y": 37.755676417015145,
+      "params": {
+        "mode": "ext",
+        "bpm": 120,
+        "extInId": "151562350",
+        "extInName": "IAC Driver Bus 1"
+      },
+      "disabled": {}
+    },
+    {
+      "id": 2,
+      "type": "SCL",
+      "x": 20,
+      "y": 360,
+      "params": {
+        "root": 2,
+        "scale": "dorian"
+      },
+      "disabled": {}
+    },
+    {
+      "id": 3,
+      "type": "STEP",
+      "x": 435.05370340290744,
+      "y": 26.76132366402252,
+      "params": {
+        "steps": [
+          {
+            "on": true,
+            "pitch": 50,
+            "vel": 100
+          },
+          {
+            "on": true,
+            "pitch": 55,
+            "vel": 100
+          },
+          {
+            "on": true,
+            "pitch": 57,
+            "vel": 100
+          },
+          {
+            "on": true,
+            "pitch": 60,
+            "vel": 100
+          },
+          {
+            "on": false,
+            "pitch": 60,
+            "vel": 100
+          },
+          {
+            "on": false,
+            "pitch": 60,
+            "vel": 100
+          },
+          {
+            "on": false,
+            "pitch": 60,
+            "vel": 100
+          },
+          {
+            "on": false,
+            "pitch": 60,
+            "vel": 100
+          },
+          {
+            "on": false,
+            "pitch": 60,
+            "vel": 100
+          },
+          {
+            "on": false,
+            "pitch": 60,
+            "vel": 100
+          },
+          {
+            "on": false,
+            "pitch": 60,
+            "vel": 100
+          },
+          {
+            "on": false,
+            "pitch": 60,
+            "vel": 100
+          },
+          {
+            "on": false,
+            "pitch": 60,
+            "vel": 100
+          },
+          {
+            "on": false,
+            "pitch": 60,
+            "vel": 100
+          },
+          {
+            "on": false,
+            "pitch": 60,
+            "vel": 100
+          },
+          {
+            "on": false,
+            "pitch": 60,
+            "vel": 100
+          }
+        ],
+        "vel": 78,
+        "gateLen": 0.96,
+        "len": 4
+      },
+      "disabled": {}
+    },
+    {
+      "id": 4,
+      "type": "CHORD",
+      "x": 1006.8723439954292,
+      "y": 17.13060765913967,
+      "params": {
+        "type": "7th",
+        "voices": 4,
+        "inversion": 0
+      },
+      "disabled": {}
+    },
+    {
+      "id": 5,
+      "type": "MIDIOUT",
+      "x": 1171.9251224165037,
+      "y": 240.39484835497117,
+      "params": {
+        "deviceId": "1134999386",
+        "channel": 1,
+        "deviceName": "IAC Driver Bus 1"
+      },
+      "disabled": {}
+    },
+    {
+      "id": 6,
+      "type": "STEP",
+      "x": 261.08647916055634,
+      "y": 240.52911553344586,
+      "params": {
+        "steps": [
+          {
+            "on": true,
+            "pitch": 74,
+            "vel": 100
+          },
+          {
+            "on": true,
+            "pitch": 69,
+            "vel": 100
+          },
+          {
+            "on": true,
+            "pitch": 72,
+            "vel": 100
+          },
+          {
+            "on": true,
+            "pitch": 69,
+            "vel": 100
+          },
+          {
+            "on": true,
+            "pitch": 71,
+            "vel": 100
+          },
+          {
+            "on": true,
+            "pitch": 67,
+            "vel": 100
+          },
+          {
+            "on": true,
+            "pitch": 69,
+            "vel": 100
+          },
+          {
+            "on": true,
+            "pitch": 65,
+            "vel": 100
+          },
+          {
+            "on": true,
+            "pitch": 72,
+            "vel": 100
+          },
+          {
+            "on": true,
+            "pitch": 69,
+            "vel": 100
+          },
+          {
+            "on": true,
+            "pitch": 67,
+            "vel": 100
+          },
+          {
+            "on": true,
+            "pitch": 64,
+            "vel": 100
+          },
+          {
+            "on": true,
+            "pitch": 67,
+            "vel": 100
+          },
+          {
+            "on": true,
+            "pitch": 65,
+            "vel": 100
+          },
+          {
+            "on": true,
+            "pitch": 64,
+            "vel": 100
+          },
+          {
+            "on": true,
+            "pitch": 62,
+            "vel": 100
+          }
+        ],
+        "vel": 96,
+        "gateLen": 0.5,
+        "len": 16
+      },
+      "disabled": {}
+    },
+    {
+      "id": 7,
+      "type": "CHANCE",
+      "x": 847.8238796145799,
+      "y": 256.2607048431434,
+      "params": {
+        "prob": 80
+      },
+      "disabled": {}
+    },
+    {
+      "id": 8,
+      "type": "QUANT",
+      "x": 902.1240699909955,
+      "y": 457.4826970961567,
+      "params": {
+        "mode": "snap"
+      },
+      "disabled": {}
+    },
+    {
+      "id": 9,
+      "type": "MIDIOUT",
+      "x": 1172.092115160708,
+      "y": 405.2276818763284,
+      "params": {
+        "deviceId": "1134999386",
+        "channel": 2,
+        "deviceName": "IAC Driver Bus 1"
+      },
+      "disabled": {}
+    },
+    {
+      "id": 10,
+      "type": "STEP",
+      "x": 298.59374531196295,
+      "y": 447.0951718228719,
+      "params": {
+        "steps": [
+          {
+            "on": true,
+            "pitch": 38,
+            "vel": 100
+          },
+          {
+            "on": true,
+            "pitch": 38,
+            "vel": 100
+          },
+          {
+            "on": true,
+            "pitch": 38,
+            "vel": 100
+          },
+          {
+            "on": true,
+            "pitch": 38,
+            "vel": 100
+          },
+          {
+            "on": true,
+            "pitch": 43,
+            "vel": 100
+          },
+          {
+            "on": true,
+            "pitch": 43,
+            "vel": 100
+          },
+          {
+            "on": true,
+            "pitch": 43,
+            "vel": 100
+          },
+          {
+            "on": true,
+            "pitch": 43,
+            "vel": 100
+          },
+          {
+            "on": true,
+            "pitch": 45,
+            "vel": 100
+          },
+          {
+            "on": true,
+            "pitch": 45,
+            "vel": 100
+          },
+          {
+            "on": true,
+            "pitch": 45,
+            "vel": 100
+          },
+          {
+            "on": true,
+            "pitch": 45,
+            "vel": 100
+          },
+          {
+            "on": true,
+            "pitch": 48,
+            "vel": 100
+          },
+          {
+            "on": true,
+            "pitch": 48,
+            "vel": 100
+          },
+          {
+            "on": true,
+            "pitch": 48,
+            "vel": 100
+          },
+          {
+            "on": true,
+            "pitch": 48,
+            "vel": 100
+          }
+        ],
+        "vel": 104,
+        "gateLen": 0.46,
+        "len": 16
+      },
+      "disabled": {}
+    },
+    {
+      "id": 11,
+      "type": "MIDIOUT",
+      "x": 1175.5757693523053,
+      "y": 566.8149923200424,
+      "params": {
+        "deviceId": "1134999386",
+        "channel": 3,
+        "deviceName": "IAC Driver Bus 1"
+      },
+      "disabled": {}
+    },
+    {
+      "id": 12,
+      "type": "EUCLID",
+      "x": 300,
+      "y": 660,
+      "params": {
+        "hits": 5,
+        "steps": 16,
+        "rot": 0,
+        "pitch": 81,
+        "vel": 80,
+        "gateLen": 0.4,
+        "div": 1
+      },
+      "disabled": {}
+    },
+    {
+      "id": 13,
+      "type": "QUANT",
+      "x": 865.8206652747815,
+      "y": 725.1351658718357,
+      "params": {
+        "mode": "snap"
+      },
+      "disabled": {}
+    },
+    {
+      "id": 14,
+      "type": "MIDIOUT",
+      "x": 1181.0177430455367,
+      "y": 730.079395658764,
+      "params": {
+        "deviceId": "1134999386",
+        "channel": 4,
+        "deviceName": "IAC Driver Bus 1"
+      },
+      "disabled": {}
+    },
+    {
+      "id": 15,
+      "type": "STEP",
+      "x": 19.74801556474864,
+      "y": 1005.6285489432449,
+      "params": {
+        "steps": [
+          {
+            "on": true,
+            "pitch": 36,
+            "vel": 100
+          },
+          {
+            "on": false,
+            "pitch": 60,
+            "vel": 100
+          },
+          {
+            "on": false,
+            "pitch": 60,
+            "vel": 100
+          },
+          {
+            "on": false,
+            "pitch": 60,
+            "vel": 100
+          },
+          {
+            "on": false,
+            "pitch": 60,
+            "vel": 100
+          },
+          {
+            "on": false,
+            "pitch": 60,
+            "vel": 100
+          },
+          {
+            "on": false,
+            "pitch": 60,
+            "vel": 100
+          },
+          {
+            "on": false,
+            "pitch": 60,
+            "vel": 100
+          },
+          {
+            "on": false,
+            "pitch": 60,
+            "vel": 100
+          },
+          {
+            "on": false,
+            "pitch": 60,
+            "vel": 100
+          },
+          {
+            "on": false,
+            "pitch": 60,
+            "vel": 100
+          },
+          {
+            "on": false,
+            "pitch": 60,
+            "vel": 100
+          },
+          {
+            "on": false,
+            "pitch": 60,
+            "vel": 100
+          },
+          {
+            "on": false,
+            "pitch": 60,
+            "vel": 100
+          },
+          {
+            "on": false,
+            "pitch": 60,
+            "vel": 100
+          },
+          {
+            "on": false,
+            "pitch": 60,
+            "vel": 100
+          }
+        ],
+        "vel": 100,
+        "gateLen": 0.7,
+        "len": 1
+      },
+      "disabled": {}
+    },
+    {
+      "id": 16,
+      "type": "MIDIOUT",
+      "x": 687.2649815841286,
+      "y": 1369.0845259844139,
+      "params": {
+        "deviceId": "1134999386",
+        "channel": 10,
+        "deviceName": "IAC Driver Bus 1"
+      },
+      "disabled": {}
+    },
+    {
+      "id": 17,
+      "type": "STEP",
+      "x": 23.414157213138424,
+      "y": 1174.6140628748155,
+      "params": {
+        "steps": [
+          {
+            "on": false,
+            "pitch": 60,
+            "vel": 100
+          },
+          {
+            "on": true,
+            "pitch": 38,
+            "vel": 100
+          },
+          {
+            "on": false,
+            "pitch": 60,
+            "vel": 100
+          },
+          {
+            "on": false,
+            "pitch": 60,
+            "vel": 100
+          },
+          {
+            "on": false,
+            "pitch": 60,
+            "vel": 100
+          },
+          {
+            "on": false,
+            "pitch": 60,
+            "vel": 100
+          },
+          {
+            "on": false,
+            "pitch": 60,
+            "vel": 100
+          },
+          {
+            "on": false,
+            "pitch": 60,
+            "vel": 100
+          },
+          {
+            "on": false,
+            "pitch": 60,
+            "vel": 100
+          },
+          {
+            "on": false,
+            "pitch": 60,
+            "vel": 100
+          },
+          {
+            "on": false,
+            "pitch": 60,
+            "vel": 100
+          },
+          {
+            "on": false,
+            "pitch": 60,
+            "vel": 100
+          },
+          {
+            "on": false,
+            "pitch": 60,
+            "vel": 100
+          },
+          {
+            "on": false,
+            "pitch": 60,
+            "vel": 100
+          },
+          {
+            "on": false,
+            "pitch": 60,
+            "vel": 100
+          },
+          {
+            "on": false,
+            "pitch": 60,
+            "vel": 100
+          }
+        ],
+        "vel": 100,
+        "gateLen": 0.5,
+        "len": 2
+      },
+      "disabled": {}
+    },
+    {
+      "id": 18,
+      "type": "STEP",
+      "x": 711.2108063694977,
+      "y": 1003.9920181403124,
+      "params": {
+        "steps": [
+          {
+            "on": false,
+            "pitch": 42,
+            "vel": 100
+          },
+          {
+            "on": true,
+            "pitch": 42,
+            "vel": 100
+          },
+          {
+            "on": true,
+            "pitch": 42,
+            "vel": 100
+          },
+          {
+            "on": true,
+            "pitch": 42,
+            "vel": 100
+          },
+          {
+            "on": true,
+            "pitch": 42,
+            "vel": 100
+          },
+          {
+            "on": true,
+            "pitch": 42,
+            "vel": 100
+          },
+          {
+            "on": false,
+            "pitch": 42,
+            "vel": 100
+          },
+          {
+            "on": true,
+            "pitch": 42,
+            "vel": 100
+          },
+          {
+            "on": true,
+            "pitch": 42,
+            "vel": 100
+          },
+          {
+            "on": true,
+            "pitch": 42,
+            "vel": 100
+          },
+          {
+            "on": true,
+            "pitch": 42,
+            "vel": 100
+          },
+          {
+            "on": true,
+            "pitch": 42,
+            "vel": 100
+          },
+          {
+            "on": false,
+            "pitch": 42,
+            "vel": 100
+          },
+          {
+            "on": true,
+            "pitch": 42,
+            "vel": 100
+          },
+          {
+            "on": true,
+            "pitch": 42,
+            "vel": 100
+          },
+          {
+            "on": true,
+            "pitch": 42,
+            "vel": 100
+          }
+        ],
+        "vel": 100,
+        "gateLen": 0.25,
+        "len": 16
+      },
+      "disabled": {}
+    },
+    {
+      "id": 19,
+      "type": "STEP",
+      "x": 711.5460390359874,
+      "y": 1179.9214323701133,
+      "params": {
+        "steps": [
+          {
+            "on": false,
+            "pitch": 60,
+            "vel": 100
+          },
+          {
+            "on": true,
+            "pitch": 44,
+            "vel": 100
+          },
+          {
+            "on": false,
+            "pitch": 60,
+            "vel": 100
+          },
+          {
+            "on": true,
+            "pitch": 44,
+            "vel": 100
+          },
+          {
+            "on": false,
+            "pitch": 60,
+            "vel": 100
+          },
+          {
+            "on": true,
+            "pitch": 44,
+            "vel": 100
+          },
+          {
+            "on": false,
+            "pitch": 60,
+            "vel": 100
+          },
+          {
+            "on": true,
+            "pitch": 44,
+            "vel": 100
+          },
+          {
+            "on": false,
+            "pitch": 60,
+            "vel": 100
+          },
+          {
+            "on": true,
+            "pitch": 44,
+            "vel": 100
+          },
+          {
+            "on": false,
+            "pitch": 60,
+            "vel": 100
+          },
+          {
+            "on": true,
+            "pitch": 44,
+            "vel": 100
+          },
+          {
+            "on": false,
+            "pitch": 60,
+            "vel": 100
+          },
+          {
+            "on": true,
+            "pitch": 44,
+            "vel": 100
+          },
+          {
+            "on": false,
+            "pitch": 60,
+            "vel": 100
+          },
+          {
+            "on": true,
+            "pitch": 44,
+            "vel": 100
+          }
+        ],
+        "vel": 121,
+        "gateLen": 0.9,
+        "len": 16
+      },
+      "disabled": {}
+    }
+  ],
+  "cables": [
+    {
+      "from": {
+        "mid": 1,
+        "port": "1"
+      },
+      "to": {
+        "mid": 3,
+        "port": "clk"
+      },
+      "type": "clock"
+    },
+    {
+      "from": {
+        "mid": 2,
+        "port": "scl"
+      },
+      "to": {
+        "mid": 4,
+        "port": "scl"
+      },
+      "type": "scale"
+    },
+    {
+      "from": {
+        "mid": 3,
+        "port": "note"
+      },
+      "to": {
+        "mid": 4,
+        "port": "in"
+      },
+      "type": "note"
+    },
+    {
+      "from": {
+        "mid": 4,
+        "port": "out"
+      },
+      "to": {
+        "mid": 5,
+        "port": "in"
+      },
+      "type": "note"
+    },
+    {
+      "from": {
+        "mid": 1,
+        "port": "1/8"
+      },
+      "to": {
+        "mid": 6,
+        "port": "clk"
+      },
+      "type": "clock"
+    },
+    {
+      "from": {
+        "mid": 6,
+        "port": "note"
+      },
+      "to": {
+        "mid": 7,
+        "port": "in"
+      },
+      "type": "note"
+    },
+    {
+      "from": {
+        "mid": 7,
+        "port": "out"
+      },
+      "to": {
+        "mid": 8,
+        "port": "in"
+      },
+      "type": "note"
+    },
+    {
+      "from": {
+        "mid": 2,
+        "port": "scl"
+      },
+      "to": {
+        "mid": 8,
+        "port": "scl"
+      },
+      "type": "scale"
+    },
+    {
+      "from": {
+        "mid": 8,
+        "port": "out"
+      },
+      "to": {
+        "mid": 9,
+        "port": "in"
+      },
+      "type": "note"
+    },
+    {
+      "from": {
+        "mid": 1,
+        "port": "1/4"
+      },
+      "to": {
+        "mid": 10,
+        "port": "clk"
+      },
+      "type": "clock"
+    },
+    {
+      "from": {
+        "mid": 10,
+        "port": "note"
+      },
+      "to": {
+        "mid": 11,
+        "port": "in"
+      },
+      "type": "note"
+    },
+    {
+      "from": {
+        "mid": 1,
+        "port": "1/16"
+      },
+      "to": {
+        "mid": 12,
+        "port": "clk"
+      },
+      "type": "clock"
+    },
+    {
+      "from": {
+        "mid": 12,
+        "port": "note"
+      },
+      "to": {
+        "mid": 13,
+        "port": "in"
+      },
+      "type": "note"
+    },
+    {
+      "from": {
+        "mid": 2,
+        "port": "scl"
+      },
+      "to": {
+        "mid": 13,
+        "port": "scl"
+      },
+      "type": "scale"
+    },
+    {
+      "from": {
+        "mid": 13,
+        "port": "out"
+      },
+      "to": {
+        "mid": 14,
+        "port": "in"
+      },
+      "type": "note"
+    },
+    {
+      "from": {
+        "mid": 15,
+        "port": "note"
+      },
+      "to": {
+        "mid": 16,
+        "port": "in"
+      },
+      "type": "note"
+    },
+    {
+      "from": {
+        "mid": 1,
+        "port": "1/4"
+      },
+      "to": {
+        "mid": 15,
+        "port": "clk"
+      },
+      "type": "clock"
+    },
+    {
+      "from": {
+        "mid": 17,
+        "port": "note"
+      },
+      "to": {
+        "mid": 16,
+        "port": "in"
+      },
+      "type": "note"
+    },
+    {
+      "from": {
+        "mid": 1,
+        "port": "1/4"
+      },
+      "to": {
+        "mid": 17,
+        "port": "clk"
+      },
+      "type": "clock"
+    },
+    {
+      "from": {
+        "mid": 18,
+        "port": "note"
+      },
+      "to": {
+        "mid": 16,
+        "port": "in"
+      },
+      "type": "note"
+    },
+    {
+      "from": {
+        "mid": 1,
+        "port": "1/16"
+      },
+      "to": {
+        "mid": 18,
+        "port": "clk"
+      },
+      "type": "clock"
+    },
+    {
+      "from": {
+        "mid": 1,
+        "port": "1/8"
+      },
+      "to": {
+        "mid": 19,
+        "port": "clk"
+      },
+      "type": "clock"
+    },
+    {
+      "from": {
+        "mid": 19,
+        "port": "note"
+      },
+      "to": {
+        "mid": 16,
+        "port": "in"
+      },
+      "type": "note"
+    }
+  ]
+}
