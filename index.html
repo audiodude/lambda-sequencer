@@ -1025,7 +1025,7 @@
       <div>
         <!-- TOPBAR -->
         <div id="topbar">
-          <div class="logo">λ-SEQ <span class="commit-hash">51c138b</span></div>
+          <div class="logo">λ-SEQ <span class="commit-hash">96bc2dd</span></div>
           <div class="sep"></div>
           <button
             :class="['play', { on: transport.playing }]"
@@ -2201,29 +2201,33 @@
             if (port !== 'clk' || ev.kind !== 'clock') return;
             const num = clamp(m.params.num | 0, 1, 1000);
             const den = clamp(m.params.den | 0, 1, 1000);
-            const ratio = num / den; // output rate = input rate * (num/den)
-            // measure the incoming pulse period to space multiplied pulses
+            // measure the incoming pulse period — used ONLY to space multiplied
+            // sub-pulses within a window, never to decide divider phase
             const prev = m.state.lastTime;
             m.state.lastTime = ev.time;
             const period =
               prev != null && ev.time > prev
                 ? ev.time - prev
                 : secondsPerPulse(ctx.transport.bpm);
-            const outPeriod = period / ratio;
-            // (re)sync the output phase on the first pulse or after a stop/start
-            let next = m.state.nextOut;
-            if (next == null || next < ev.time - 1e-9) next = ev.time;
-            // emit every output pulse landing in this input window [t, t+period)
+            // Rational rate-change (output rate = input rate * num/den) driven by
+            // an integer INPUT-PULSE counter, so the unknown period of the very
+            // first pulse can't corrupt the phase (which divided the chord pad
+            // wrong: a ÷4 fired at bars 0,1,5,9 instead of 0,4,8,12). Output
+            // pulse j belongs at input-position j*den/num; emit each j landing in
+            // this input window [i, i+1), placing it inside the window via period.
+            const i = (m.state.inIdx = (m.state.inIdx ?? -1) + 1);
+            let j = m.state.outJ ?? 0;
             let guard = 0;
-            while (next < ev.time + period - 1e-9 && guard++ < 4096) {
+            while (j * den < (i + 1) * num && guard++ < 4096) {
+              const frac = (j * den) / num - i; // 0 <= frac < 1 within the window
               ctx.emit(m, 'clk', {
                 kind: 'clock',
-                time: next,
+                time: ev.time + frac * period,
                 idx: (m.state.outIdx = (m.state.outIdx || 0) + 1),
               });
-              next += outPeriod;
+              j++;
             }
-            m.state.nextOut = next;
+            m.state.outJ = j;
           },
         },
         TRANSPOSE: {
@@ -3365,7 +3369,8 @@
                 m.state.lastTime = undefined;
               }
               if (m.type === 'DIV') {
-                m.state.nextOut = undefined;
+                m.state.inIdx = undefined;
+                m.state.outJ = undefined;
                 m.state.lastTime = undefined;
               }
             }
