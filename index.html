@@ -1132,7 +1132,7 @@
       <div :class="'view-' + view">
         <!-- TOPBAR -->
         <div id="topbar">
-          <div class="logo">λ-SEQ <span class="commit-hash">33fb1f5</span></div>
+          <div class="logo">λ-SEQ <span class="commit-hash">5671925</span></div>
           <div class="sep"></div>
           <button
             :class="['play', { on: transport.playing }]"
@@ -2249,9 +2249,10 @@
           viktorFailed = true;
           return null;
         }
+        let ctx = null;
         try {
           const engine = NV1.create(AC, VIKTOR_NULL_STORE).dawEngine;
-          const ctx = engine.audioContext;
+          ctx = engine.audioContext;
           // splice our volume gain between the engine's master out and the
           // speakers — patches overwrite engine.masterVolume on load
           engine.masterVolume.disconnect();
@@ -2270,6 +2271,7 @@
         } catch (e) {
           console.warn('Viktor init failed:', e);
           viktorFailed = true;
+          try { if (ctx) ctx.close(); } catch {}
         }
         return viktorRt;
       }
@@ -2291,7 +2293,12 @@
 
       function viktorSetVolume(vol) {
         const v = viktorEnsure();
-        if (v) v.volumeNode.gain.value = clamp(+vol || 0, 0, 1);
+        if (!v) return;
+        const x = clamp(+vol || 0, 0, 1);
+        // short ramp so slider drags don't zipper mid-note
+        if (v.ctx.state === 'running')
+          v.volumeNode.gain.setTargetAtTime(x, v.ctx.currentTime, 0.015);
+        else v.volumeNode.gain.value = x;
       }
 
       // hold each event on a timer until its due time — the engine's MIDI path
@@ -3643,14 +3650,19 @@
             });
           },
 
-          // panel edits: apply live if the engine exists (or can start now —
-          // this runs inside a click/input gesture), then persist
-          viktorParamsChanged() {
+          // shared by panel edits and boot-time gesture arming
+          applyViktorParams() {
             const m = this.viktorModule;
             if (m && viktorEnsure()) {
               viktorSetPatch(m.params.patchName);
               viktorSetVolume(m.params.volume);
             }
+          },
+
+          // panel edits: apply live if the engine exists (or can start now —
+          // this runs inside a click/input gesture), then persist
+          viktorParamsChanged() {
+            this.applyViktorParams();
             this.viktorError = viktorFailed;
             this.save();
           },
@@ -4688,13 +4700,7 @@
           // boot patch already contains a VIKTOR module, arm a one-time init.
           // viktorEnsure() is idempotent so double-arming is harmless.
           if (this.viktorModule) {
-            const arm = () => {
-              const m = this.viktorModule;
-              if (m && viktorEnsure()) {
-                viktorSetPatch(m.params.patchName);
-                viktorSetVolume(m.params.volume);
-              }
-            };
+            const arm = () => this.applyViktorParams();
             window.addEventListener('pointerdown', arm, {
               once: true,
               capture: true,

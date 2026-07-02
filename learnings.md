@@ -67,6 +67,8 @@ Every note would play up to 35 ms early — and *unevenly* early: events arrive 
 
 - **Main-thread contention** can land timers late (ms typically, tens of ms pathologically). The WebMIDI path is immune to this; the Viktor path isn't.
 - **Audio output latency** (~10–30 ms of Web Audio buffering) puts Viktor slightly behind external hardware synths when layered. Physics, not the shim.
+- **Byte headroom is spent.** index.html landed at ~1.119 MB against a 1.12 MB working cap (growth ~192 KB, bundle alone 181 KB). The next feature needs its own explicit budget conversation, not an assumption of slack.
+- **Gesture-gating leans on Chromium's sticky user activation.** Mid-session engine init often runs from a scheduler timer after a qualifying click elsewhere; Safari would keep the context suspended until the Viktor UI itself is touched. Irrelevant while WebMIDI keeps λ-SEQ Chromium-only — revisit if that changes.
 
 ## Upgrade path if setTimeout ever feels loose
 
