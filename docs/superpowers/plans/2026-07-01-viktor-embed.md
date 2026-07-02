@@ -472,10 +472,13 @@ Insert after `secondsPerPulse()` in HELPERS (all functions are script-scope, sam
         v.timers.add(tOn);
         const tOff = setTimeout(() => {
           v.timers.delete(tOff);
-          v.engine.externalMidiMessage({ data: [0x80, pitch, 0] });
           const n = (v.sounding.get(pitch) || 1) - 1;
           if (n > 0) v.sounding.set(pitch, n);
-          else v.sounding.delete(pitch);
+          else {
+            v.sounding.delete(pitch);
+            // last release for this pitch — only now free the engine voice
+            v.engine.externalMidiMessage({ data: [0x80, pitch, 0] });
+          }
         }, delay + gate);
         v.timers.add(tOff);
       }
