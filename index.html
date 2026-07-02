@@ -821,7 +821,8 @@
         padding: 4px 0;
       }
 
-      .module.MIDIOUT .activity {
+      .module.MIDIOUT .activity,
+      .module.VIKTOR .activity {
         display: inline-block;
         width: 8px;
         height: 8px;
@@ -830,9 +831,18 @@
         margin-left: 6px;
         transition: background 0.12s;
       }
-      .module.MIDIOUT .activity.on {
+      .module.MIDIOUT .activity.on,
+      .module.VIKTOR .activity.on {
         background: var(--accent);
         box-shadow: 0 0 8px var(--accent);
+      }
+      .module.VIKTOR .viktor-patch-name {
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        color: var(--note);
       }
 
       #palette {
@@ -1027,7 +1037,7 @@
       <div>
         <!-- TOPBAR -->
         <div id="topbar">
-          <div class="logo">λ-SEQ <span class="commit-hash">4fc7ff5</span></div>
+          <div class="logo">λ-SEQ <span class="commit-hash">25ff795</span></div>
           <div class="sep"></div>
           <button
             :class="['play', { on: transport.playing }]"
@@ -1923,6 +1933,37 @@
           Sends incoming notes to the chosen MIDI <b>DEVICE</b> on channel
           <b>CH</b>. The dot blinks when notes are flowing.<br />
           Bring your own synth — connect a hardware or virtual MIDI input.
+        </template>
+      </module-frame>
+    </template>
+
+    <template id="tmpl-viktor">
+      <module-frame
+        :module="module"
+        title="VIKTOR"
+        :inputs="[{name:'in',type:'note'}]"
+        :outputs="[]"
+        @head-pointerdown="$emit('head-pointerdown', $event)"
+        @port-pointerdown="$emit('port-pointerdown', $event)"
+        @port-dblclick="$emit('port-dblclick', $event)"
+        @remove="$emit('remove')"
+        @duplicate="$emit('duplicate')"
+      >
+        <div class="row">
+          <label>PATCH</label>
+          <span class="viktor-patch-name" :title="module.params.patchName">
+            {{ module.params.patchName }}
+          </span>
+        </div>
+        <div class="row">
+          <button @click="seqSetView('viktor')">OPEN</button>
+          <span :class="['activity', { on: module.state.activity }]"></span>
+        </div>
+        <template #help>
+          Built-in <b>Viktor NV-1</b> synth — no MIDI device needed. Feed it
+          notes, pick a <b>PATCH</b> on the synth page (<b>OPEN</b>, or the
+          view switcher up top). Audio starts after your first click and runs
+          fully offline. The dot blinks when notes are flowing.
         </template>
       </module-frame>
     </template>
@@ -3271,6 +3312,14 @@
         },
       });
 
+      const ModuleViktor = defineComponent({
+        template: '#tmpl-viktor',
+        components: { ModuleFrame },
+        props: baseProps,
+        emits: baseEmits,
+        inject: { seqSetView: { default: () => () => {} } },
+      });
+
       const COMPONENT_FOR = {
         CLOCK: ModuleClock,
         STEP: ModuleStep,
@@ -3282,6 +3331,7 @@
         CHANCE: ModuleChance,
         SCL: ModuleScl,
         MIDIOUT: ModuleMidiOut,
+        VIKTOR: ModuleViktor,
       };
 
       // =============================================================
@@ -3323,6 +3373,7 @@
               }
               return any;
             },
+            seqSetView: (v) => this.setView && this.setView(v),
           };
         },
 
