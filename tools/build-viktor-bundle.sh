@@ -34,11 +34,11 @@ grep -q 'impulse: ""' src/daw/engine/const.js
 
 # patch 2: no fallback impulse XHR
 perl -pi -e 's{properties\.impulse \|\| "\.\./impulses/ir_rev_short\.wav"}{properties.impulse || ""}' src/daw/non-npm/tuna/tuna.js
-! grep -q 'ir_rev_short' src/daw/non-npm/tuna/tuna.js
+if grep -q 'ir_rev_short' src/daw/non-npm/tuna/tuna.js; then echo "FAIL: tuna fallback impulse not blanked" >&2; exit 1; fi
 
 # patch 3: never attach to live MIDI inputs
 perl -ni -e 'print unless /^\s*midiController\.init\(\);\s*$/' src/daw/daw.js
-! grep -q 'midiController.init()' src/daw/daw.js
+if grep -q 'midiController.init()' src/daw/daw.js; then echo "FAIL: midiController.init() still present" >&2; exit 1; fi
 
 # patch 4: expose the factory patch bank statically
 cat > nv1-entry.js <<'EOF'
@@ -53,12 +53,12 @@ module.exports = {
 };
 EOF
 
-npx -y esbuild nv1-entry.js --bundle --minify --format=iife \
+npx -y esbuild@0.28.1 nv1-entry.js --bundle --minify --format=iife \
   --global-name=NV1 --outfile=bundle.js >&2
 
 # inline-embed safety: these sequences would terminate the <script> block early
-! grep -q '</script' bundle.js
-! grep -q '<!--' bundle.js
+if grep -q '</script' bundle.js; then echo "FAIL: bundle contains </script" >&2; exit 1; fi
+if grep -q '<!--' bundle.js; then echo "FAIL: bundle contains <!--" >&2; exit 1; fi
 grep -q 'var NV1=' bundle.js
 
 cp bundle.js "$OUT"
