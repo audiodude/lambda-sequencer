@@ -1027,7 +1027,7 @@
       <div>
         <!-- TOPBAR -->
         <div id="topbar">
-          <div class="logo">λ-SEQ <span class="commit-hash">46b4b42</span></div>
+          <div class="logo">λ-SEQ <span class="commit-hash">20b4804</span></div>
           <div class="sep"></div>
           <button
             :class="['play', { on: transport.playing }]"
@@ -2002,6 +2002,7 @@
         'CHANCE',
         'SCL',
         'MIDIOUT',
+        'VIKTOR',
       ];
       const SAVE_KEY = 'lambda-seq-v1:' + location.pathname;
       const HELP_KEY = 'lambda-seq-help-seen:' + location.pathname;
@@ -2018,6 +2019,133 @@
       function secondsPerPulse(bpm) {
         return 60 / bpm / 4;
       }
+      // =============================================================
+      // VIKTOR NV-1 — embedded synth engine shim
+      // (bundle: NV1 <script> block above; timing analysis: learnings.md)
+      // =============================================================
+      const VIKTOR_DEFAULT_PATCH_NAME = 'Electric Piano';
+      // the engine's PatchLibrary wants a persistence store; module params are
+      // the single source of truth here, so hand it a black hole
+      const VIKTOR_NULL_STORE = { get: () => null, set() {}, remove() {} };
+      let viktorRt = null;
+      let viktorFailed = false;
+
+      // 2.2s stereo exponentially-decaying noise at the context's sample rate,
+      // seeded xorshift so every load sounds identical — replaces the 552 KB
+      // impulse WAV we don't ship
+      function viktorImpulse(ctx) {
+        const rate = ctx.sampleRate,
+          len = Math.floor(2.2 * rate),
+          buf = ctx.createBuffer(2, len, rate);
+        let seed = 0x2f6e2b1;
+        for (let ch = 0; ch < 2; ch++) {
+          const d = buf.getChannelData(ch);
+          for (let i = 0; i < len; i++) {
+            seed ^= seed << 13;
+            seed ^= seed >>> 17;
+            seed ^= seed << 5;
+            d[i] = ((seed >>> 0) / 0x80000000 - 1) * Math.pow(1 - i / len, 4.5);
+          }
+        }
+        return buf;
+      }
+
+      // lazy + idempotent; must first run inside a user gesture (autoplay policy)
+      function viktorEnsure() {
+        if (viktorRt || viktorFailed) return viktorRt;
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC || !window.NV1) {
+          viktorFailed = true;
+          return null;
+        }
+        try {
+          const engine = NV1.create(AC, VIKTOR_NULL_STORE).dawEngine;
+          const ctx = engine.audioContext;
+          // splice our volume gain between the engine's master out and the
+          // speakers — patches overwrite engine.masterVolume on load
+          engine.masterVolume.disconnect();
+          const volumeNode = ctx.createGain();
+          engine.masterVolume.connect(volumeNode);
+          volumeNode.connect(ctx.destination);
+          engine.reverb.convolver.buffer = viktorImpulse(ctx);
+          viktorRt = {
+            engine,
+            ctx,
+            volumeNode,
+            timers: new Set(),
+            sounding: new Map(),
+            loadedPatch: '',
+          };
+        } catch (e) {
+          console.warn('Viktor init failed:', e);
+          viktorFailed = true;
+        }
+        return viktorRt;
+      }
+
+      function viktorNames() {
+        return window.NV1 ? Object.keys(NV1.defaultPatches) : [];
+      }
+
+      function viktorSetPatch(name) {
+        const v = viktorEnsure();
+        if (!v || v.loadedPatch === name) return;
+        const src =
+          NV1.defaultPatches[name] ||
+          NV1.defaultPatches[VIKTOR_DEFAULT_PATCH_NAME];
+        // deep-clone: loadPatch/settings-convertor transposes values in place
+        v.engine.loadPatch(JSON.parse(JSON.stringify(src)), true);
+        v.loadedPatch = name;
+      }
+
+      function viktorSetVolume(vol) {
+        const v = viktorEnsure();
+        if (v) v.volumeNode.gain.value = clamp(+vol || 0, 0, 1);
+      }
+
+      // hold each event on a timer until its due time — the engine's MIDI path
+      // plays immediately; forwarding on arrival would quantize the note grid
+      // to the 25ms scheduler wakeups (see learnings.md)
+      function viktorNote(ev) {
+        const v = viktorEnsure();
+        if (!v) return;
+        if (v.ctx.state === 'suspended') {
+          try {
+            v.ctx.resume();
+          } catch {}
+        }
+        const pitch = clamp(ev.pitch | 0, 0, 127),
+          vel = clamp(ev.vel | 0, 1, 127),
+          delay = Math.max(0, (ev.time - nowSec()) * 1000),
+          gate = clamp(ev.gateLen || 0.1, 0.01, 4) * 1000;
+        const tOn = setTimeout(() => {
+          v.timers.delete(tOn);
+          v.engine.externalMidiMessage({ data: [0x90, pitch, vel] });
+          v.sounding.set(pitch, (v.sounding.get(pitch) || 0) + 1);
+        }, delay);
+        v.timers.add(tOn);
+        const tOff = setTimeout(() => {
+          v.timers.delete(tOff);
+          v.engine.externalMidiMessage({ data: [0x80, pitch, 0] });
+          const n = (v.sounding.get(pitch) || 1) - 1;
+          if (n > 0) v.sounding.set(pitch, n);
+          else v.sounding.delete(pitch);
+        }, delay + gate);
+        v.timers.add(tOff);
+      }
+
+      function viktorPanic() {
+        const v = viktorRt;
+        if (!v) return;
+        for (const t of v.timers) clearTimeout(t);
+        v.timers.clear();
+        for (const pitch of v.sounding.keys())
+          v.engine.externalMidiMessage({ data: [0x80, pitch, 0] });
+        v.sounding.clear();
+      }
+
+      // debug handle (same idiom as window.__SEQ)
+      window.__VIKTOR = () => viktorRt;
       // Octave numbering follows Ableton Live (and most DAWs): middle C = MIDI 60 = C3,
       // so the full range is C-2 (MIDI 0) … G8 (MIDI 127).
       function midiToNoteName(n) {
@@ -2367,6 +2495,32 @@
               out.send([0x80 | ch, pitch, 0], offT);
             } catch {}
             ctx.activeNotes.push({ deviceId: m.params.deviceId, ch, pitch });
+            m.state.activity = true;
+            clearTimeout(m.state._actT);
+            m.state._actT = setTimeout(() => {
+              m.state.activity = false;
+            }, 80);
+          },
+        },
+        VIKTOR: {
+          inputs: [{ name: 'in', type: 'note' }],
+          outputs: [],
+          defaults: () => ({
+            patchName: VIKTOR_DEFAULT_PATCH_NAME,
+            volume: 0.8,
+          }),
+          onInput(ctx, m, port, ev) {
+            if (port !== 'in' || ev.kind !== 'note') return;
+            if (!viktorEnsure()) {
+              // reactive once Task 5 declares viktorError in data(); a plain
+              // (harmless) instance set before that
+              ctx.viktorError = viktorFailed;
+              return;
+            }
+            // idempotent re-asserts: cheap, and self-healing across init order
+            viktorSetPatch(m.params.patchName);
+            viktorSetVolume(m.params.volume);
+            viktorNote(ev);
             m.state.activity = true;
             clearTimeout(m.state._actT);
             m.state._actT = setTimeout(() => {
@@ -3256,10 +3410,10 @@
           addModule(type, x, y, opts = {}) {
             const def = TYPES[type];
             if (!def) return null;
-            if (type === 'CLOCK') {
-              const existing = this.modules.find((m) => m.type === 'CLOCK');
+            if (type === 'CLOCK' || type === 'VIKTOR') {
+              const existing = this.modules.find((m) => m.type === type);
               if (existing) {
-                this.setStatus('only one CLOCK module', true);
+                this.setStatus('only one ' + type + ' module', true);
                 return existing;
               }
             }
@@ -3675,6 +3829,7 @@
                 } catch {}
               }
             }
+            viktorPanic();
             this.activeNotes.length = 0;
           },
 
