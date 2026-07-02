@@ -349,11 +349,12 @@ sleep 0.7
 rm -rf "$SCRATCH/chrome-smoke-profile"
 timeout 30 "$CHROME" --headless=new --disable-gpu \
   --autoplay-policy=no-user-gesture-required \
+  --disable-audio-output \
   --enable-logging=stderr --user-data-dir="$SCRATCH/chrome-smoke-profile" \
   "http://127.0.0.1:8437/viktor-smoke.html" 2>&1 | grep -m1 -o 'SMOKE:.*' || echo 'SMOKE:FAIL no output'
 ```
 
-Note: the harness drives real audio — `--autoplay-policy=no-user-gesture-required` stands in for the user gesture that real usage provides. Do NOT use `--virtual-time-budget` (it starves the audio clock).
+Note: the harness drives real audio — `--autoplay-policy=no-user-gesture-required` stands in for the user gesture that real usage provides. Do NOT use `--virtual-time-budget` (it starves the audio clock). `--disable-audio-output` is REQUIRED for determinism: without it, headless Chrome renders through the machine's default output device, and a device change (e.g. a 96 kHz interface becoming default) can freeze the audio clock — `ctx.currentTime` crawls and envelope-shaped signals measure peak=0 while a constant oscillator still shows amplitude. The null sink paces rendering by its own timer, independent of hardware. (Observed live during Task 4.)
 
 - [ ] **Step 2: Run it, verify it fails for the right reason**
 
