@@ -43,3 +43,35 @@ Patterns to recognize next time:
 - **`activeNotes` registry is still vestigial.** I push to it but only use it implicitly via the broadcast all-notes-off panic. If I ever want per-note tracking (mute-while-held, polyphony cap, monophonic legato), this is the place — right now it's dead weight in the MIDI OUT input handler. Either commit to it or rip it out. (Same bullet as last time, still true. The right answer is probably a `voices` Map keyed by `${deviceId}:${ch}:${pitch}` with a scheduled-off timestamp.)
 - **Wheel-on-cell for pitch is great; needs a visible affordance.** I added scroll-to-change-pitch on STEP cells, but nothing on screen tells the user. A tooltip on first hover, or a tiny ⇅ glyph in the corner, would have eliminated the discovery problem. The help popover mentions it, but that's a worse UX than letting the cell itself hint.
 - **Auto-select the first available MIDI output on access grant.** Currently the user opens the page, sees the default patch, hits PLAY, and nothing happens because MIDI OUT defaults to `(no device)`. Picking the first output by default on first MIDI grant would turn "nothing plays" into "something plays" without taking control away (they can still change it). Tiny win, big first-impression delta.
+
+---
+
+# Viktor NV-1 embed — routing/timing analysis (2026-07-01, pre-implementation)
+
+How sequenced notes will reach the embedded viktor-nv1-engine, and why the shim looks the way it does.
+
+## The two scheduling models
+
+- **λ-SEQ (look-ahead + timestamped handoff).** The transport wakes every 25 ms and emits all events due in the next 35 ms; each note event carries its exact intended play time (`ev.time`, seconds, `performance.now()` domain). MIDI OUT never plays "now" — it hands WebMIDI the bytes with a future timestamp (`out.send(data, onT)`) and the browser/OS delivers at that moment, below main-thread granularity. Note-offs are pre-scheduled at `time + gateLen`. Batched, early arrival is harmless because the timestamps carry the precision.
+- **Viktor (play-now).** `dawEngine.externalMidiMessage({data})` was built for live keyboard input: envelopes start at `audioContext.currentTime`, i.e. immediately. There is no "play this at time T" entry point.
+
+## Why not forward events as they arrive
+
+Every note would play up to 35 ms early — and *unevenly* early: events arrive in bursts each time the 25 ms scheduler loop runs, so the note grid would quantize to scheduler wakeups. That's audible jitter, not a constant (correctable) offset.
+
+## The shim: hold each note on a timer until due
+
+`delay = (ev.time - nowSec()) * 1000` (clamp negatives to 0) → `setTimeout` fires note-on via `externalMidiMessage`; a second timer at `delay + gateLen*1000` fires note-off. Residual jitter is ~1–4 ms on a healthy main thread vs a 125 ms sixteenth at 120 BPM — the same timing class as typical browser soft-synths. Chords are free: same-`time` events expire in the same tick; the engine's voice pool absorbs the polyphony. The shim keeps a registry of pending timers + sounding pitches so STOP mirrors the MIDI panic (cancel timers, fire note-offs).
+
+## Known imperfections (accepted for MVP)
+
+- **Main-thread contention** can land timers late (ms typically, tens of ms pathologically). The WebMIDI path is immune to this; the Viktor path isn't.
+- **Audio output latency** (~10–30 ms of Web Audio buffering) puts Viktor slightly behind external hardware synths when layered. Physics, not the shim.
+
+## Upgrade path if setTimeout ever feels loose
+
+Viktor's envelope primitives already accept an explicit start time (`envelope.js:38` — `start(time)` defaults to `currentTime` but takes a parameter), so sample-accurate scheduling is possible — but the time param isn't threaded through `instrument.onMidiMessage → voice.onMidiMessage`, so it means patching call sites inside the vendored engine bundle (giving up bit-faithful vendoring). Phase-2 only if sequenced material audibly suffers.
+
+## Corollary to "one time base, end to end"
+
+Playing "now" on a timer means the two clock domains (`performance.now()` for the sequencer, `AudioContext.currentTime` for the synth) never need converting. The moment two time bases must coexist in one app, immediate-play-on-a-timer sidesteps the epoch-mapping problem entirely; only the fork-based sample-accurate upgrade would need a real domain conversion.

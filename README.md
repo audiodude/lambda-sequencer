@@ -22,6 +22,23 @@ Note: WebMIDI requires a secure context. `file://` works in Chrome on macOS, but
 
 The two adjacent buttons are **SAVE PATCH** (downloads the current patch as JSON) and **LOAD PATCH** (loads one back in).
 
+## Built-in synth (Viktor NV-1)
+
+λ-SEQ embeds the [Viktor NV-1](https://github.com/nicroto/viktor-nv1-engine)
+synth engine (MIT), so patches can make sound with no MIDI device at all. Add a
+**VIKTOR** module and cable notes into it like a MIDI OUT. The top bar's
+**RACK | BOTH | VIKTOR** switcher shows the rack, the synth page (64 factory
+patches + volume), or both side by side.
+
+Everything runs offline inside the single HTML file — the engine is inlined and
+the reverb impulse is synthesized at load, so no network is ever touched. Audio
+starts after your first click (browser autoplay policy). Note timing for the
+built-in synth rides the JS main thread (a few ms of jitter), unlike hardware
+MIDI out which is scheduled by the OS — see `learnings.md` for the analysis.
+
+The vendored engine bundle is regenerated with `tools/build-viktor-bundle.sh`
+(pins the upstream commit; documents the four build-time patches).
+
 ## Device remapping
 
 Patches reference MIDI devices by **name** so they stay portable across machines (WebMIDI port ids differ per machine/browser). On load, λ-SEQ resolves each name to a live port. If a name can't be found, it prompts you to map it to one of your devices — pick a target once and every module that used that name is remapped.

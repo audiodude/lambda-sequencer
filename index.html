@@ -1132,7 +1132,7 @@
       <div :class="'view-' + view">
         <!-- TOPBAR -->
         <div id="topbar">
-          <div class="logo">λ-SEQ <span class="commit-hash">f024b56</span></div>
+          <div class="logo">λ-SEQ <span class="commit-hash">33fb1f5</span></div>
           <div class="sep"></div>
           <button
             :class="['play', { on: transport.playing }]"
@@ -4683,6 +4683,27 @@
           else if (saved && saved.modules && saved.modules.length)
             this.load(saved);
           else this.bootDefault();
+
+          // Viktor can only start on a user gesture (autoplay policy); if the
+          // boot patch already contains a VIKTOR module, arm a one-time init.
+          // viktorEnsure() is idempotent so double-arming is harmless.
+          if (this.viktorModule) {
+            const arm = () => {
+              const m = this.viktorModule;
+              if (m && viktorEnsure()) {
+                viktorSetPatch(m.params.patchName);
+                viktorSetVolume(m.params.volume);
+              }
+            };
+            window.addEventListener('pointerdown', arm, {
+              once: true,
+              capture: true,
+            });
+            window.addEventListener('keydown', arm, {
+              once: true,
+              capture: true,
+            });
+          }
 
           // help visibility on first load
           try {
