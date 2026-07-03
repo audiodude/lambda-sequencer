@@ -11,6 +11,7 @@ A patch is a single JSON object:
 {
   "bpm": 120,
   "source": "internal",
+  "zoom": 1,
   "modules": [ /* Module objects */ ],
   "cables":  [ /* Cable objects  */ ]
 }
@@ -22,6 +23,7 @@ A patch is a single JSON object:
 |-----------|--------|-------|
 | `bpm`     | number | Tempo for the internal scheduler. Defaults to `120` if absent. Ignored when slaved to external clock. |
 | `source`  | string | `"internal"` or `"external"`. Derived from the CLOCK module's `mode` at runtime (`applyClockParams`); persisted for convenience. |
+| `zoom`    | number | Canvas zoom factor, clamped to `0.3–2` on load. Defaults to `1` if absent (legacy patches). |
 | `modules` | array  | The modules in the rack. Order is not significant. |
 | `cables`  | array  | The patch cables connecting module ports. |
 

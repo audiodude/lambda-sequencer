@@ -86,6 +86,7 @@
         letter-spacing: 0.18em;
         color: var(--accent);
         font-size: 14px;
+        cursor: pointer;
       }
       #topbar .logo .commit-hash {
         font-family: ui-monospace, monospace;
@@ -1132,7 +1133,7 @@
       <div :class="'view-' + view">
         <!-- TOPBAR -->
         <div id="topbar">
-          <div class="logo">λ-SEQ <span class="commit-hash">9a5efea</span></div>
+          <div class="logo" @click="setView('rack')" title="Rack view">λ-SEQ <span class="commit-hash">6379303</span></div>
           <div class="sep"></div>
           <button
             :class="['play', { on: transport.playing }]"
@@ -4397,6 +4398,7 @@
             const cy = (stage.scrollTop + stage.clientHeight / 2) / z0;
             this.zoom = z1;
             this.updateCanvasExtent(false);
+            this.save();
             nextTick(() => {
               stage.scrollLeft = cx * z1 - stage.clientWidth / 2;
               stage.scrollTop = cy * z1 - stage.clientHeight / 2;
@@ -4412,6 +4414,7 @@
             const cy = (stage.scrollTop + stage.clientHeight / 2) / z0;
             this.zoom = 1;
             this.updateCanvasExtent(false);
+            this.save();
             nextTick(() => {
               stage.scrollLeft = cx - stage.clientWidth / 2;
               stage.scrollTop = cy - stage.clientHeight / 2;
@@ -4424,6 +4427,7 @@
             return {
               bpm: this.transport.bpm,
               source: this.transport.source,
+              zoom: this.zoom,
               modules: this.modules.map((m) => ({
                 id: m.id,
                 type: m.type,
@@ -4459,6 +4463,8 @@
             this.selectedCableIdx = null;
             if (!data) return;
             this.transport.bpm = data.bpm || 120;
+            // same bounds as zoomBy; legacy patches without zoom get 1
+            this.zoom = clamp(+data.zoom || 1, 0.3, 2);
             const droppedIds = new Set();
             for (const md of data.modules || []) {
               if (md.type === 'KEY') {
