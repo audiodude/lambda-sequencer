@@ -77,3 +77,14 @@ Viktor's envelope primitives already accept an explicit start time (`envelope.js
 ## Corollary to "one time base, end to end"
 
 Playing "now" on a timer means the two clock domains (`performance.now()` for the sequencer, `AudioContext.currentTime` for the synth) never need converting. The moment two time bases must coexist in one app, immediate-play-on-a-timer sidesteps the epoch-mapping problem entirely; only the fork-based sample-accurate upgrade would need a real domain conversion.
+
+---
+
+# Same-time event delivery is dependency-ordered (2026-07-03)
+
+Depth-first synchronous `emit()` made *simultaneous* events race on accidents of construction: fan-out followed cable-creation order, and `fireMasterPulse` emitted 1/16 before 1/4. Real casualty: STEP.note → EUCLID.pitch (sample-and-hold), both clocked on the downbeat — EUCLID's tick was often delivered before STEP's, so the downbeat hit played the *previous* pitch and every pitch change landed one event late.
+
+- **A time-sorted event queue alone does NOT fix simultaneity races.** The colliding events carry the identical timestamp; FIFO tie-breaking reproduces the bug exactly. The tie-break is the whole fix.
+- Delivery rule now: `emit()` queues; the drain delivers the earliest time bucket only, and within a bucket an event waits while any module *upstream* of its destination (transitively, all cable types) still has a pending delivery — producers settle before the modules they modulate fire. Remaining ties: scale < note < clock, then enqueue order. Cycles in a bucket fall back to enqueue order; a 10k-deliveries guard clears the queue on runaway feedback (previously a stack overflow).
+- `fireMasterPulse` batches all port emits for a pulse before draining — otherwise the first port's emit would drain alone and cross-port coincidences could never be reordered.
+- Cost: ~4 KB on index.html. Verified by order-smoke harness (same-port adversarial cable order + cross-port 1/16-vs-1/4, plus S&H-holds-between-coincidences), full Viktor suite, clean file:// boot.

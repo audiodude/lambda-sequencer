@@ -1132,7 +1132,7 @@
       <div :class="'view-' + view">
         <!-- TOPBAR -->
         <div id="topbar">
-          <div class="logo">λ-SEQ <span class="commit-hash">9453749</span></div>
+          <div class="logo">λ-SEQ <span class="commit-hash">4fc1a04</span></div>
           <div class="sep"></div>
           <button
             :class="['play', { on: transport.playing }]"
@@ -3861,6 +3861,11 @@
             // downstream module can size its first-note gate before it has seen
             // two ticks to measure the interval itself.
             const base = secondsPerPulse(this.transport.bpm);
+            // batch every port's emit for this pulse before draining, so the
+            // drain sees the complete set of same-time deliveries — otherwise
+            // 1/16 consumers would always run before 1/4 consumers on a
+            // shared downbeat, regardless of dependency order
+            this._draining = true;
             for (const m of this.modules)
               if (m.type === 'CLOCK') {
                 this.emit(m, '1/16', { kind: 'clock', time: t, idx, period: base });
@@ -3873,19 +3878,99 @@
                 if (idx % 16 === 0)
                   this.emit(m, '1', { kind: 'clock', time: t, idx, period: base * 16 });
               }
+            this._draining = false;
+            this.drainEvents();
           },
 
           // ----- event propagation -----
+          // emit() queues deliveries; drainEvents() hands them to onInput in
+          // (time, dependency, kind) order. Same-time events would otherwise
+          // race on cable/port order: a STEP pitch change landing exactly on
+          // an EUCLID tick reached the sample-and-hold one event late, so the
+          // downbeat played the old pitch (see learnings.md).
           emit(m, port, event) {
             if (m.disabled && m.disabled['out:' + port]) return;
+            const q = this._evq || (this._evq = []);
             for (const c of this.cables) {
               if (c.from.mid !== m.id || c.from.port !== port) continue;
               const dst = this.modules.find((x) => x.id === c.to.mid);
               if (!dst) continue;
               if (dst.disabled && dst.disabled['in:' + c.to.port]) continue;
-              const def = TYPES[dst.type];
-              if (def.onInput) def.onInput(this, dst, c.to.port, event);
+              q.push({ dst, port: c.to.port, event, seq: this._evseq = (this._evseq || 0) + 1 });
             }
+            if (!this._draining) this.drainEvents();
+          },
+
+          drainEvents() {
+            if (this._draining) return;
+            this._draining = true;
+            try {
+              const q = this._evq || (this._evq = []);
+              // time-less events (scale re-broadcasts) sort first: they are
+              // immediate state, not scheduled signals
+              const tOf = (e) => (e.event.time == null ? -Infinity : e.event.time);
+              const KIND_PRI = { scale: 0, note: 1, clock: 2 };
+              const before = (a, b) => {
+                const pa = KIND_PRI[a.event.kind] ?? 0;
+                const pb = KIND_PRI[b.event.kind] ?? 0;
+                return pa !== pb ? pa < pb : a.seq < b.seq;
+              };
+              const up = this._upstreamMap();
+              let guard = 0;
+              while (q.length) {
+                if (++guard > 10000) {
+                  q.length = 0;
+                  this.setStatus('event overflow — feedback cable loop?', true);
+                  break;
+                }
+                // only the earliest time bucket is eligible; within it, a
+                // delivery waits while a module upstream of its destination
+                // still has one pending (so producers settle before the
+                // modules they modulate fire), then scale < note < clock
+                let minT = Infinity;
+                for (const e of q) if (tOf(e) < minT) minT = tOf(e);
+                const bucket = q.filter((e) => tOf(e) === minT);
+                let pick = null;
+                for (const e of bucket) {
+                  const ups = up.get(e.dst.id);
+                  const blocked =
+                    ups && bucket.some((o) => o !== e && ups.has(o.dst.id));
+                  if (!blocked && (!pick || before(e, pick))) pick = e;
+                }
+                if (!pick) {
+                  // dependency cycle within the bucket — deliver something
+                  for (const e of bucket) if (!pick || before(e, pick)) pick = e;
+                }
+                q.splice(q.indexOf(pick), 1);
+                const def = TYPES[pick.dst.type];
+                if (def.onInput) def.onInput(this, pick.dst, pick.port, pick.event);
+              }
+            } finally {
+              this._draining = false;
+            }
+          },
+
+          // module id -> Set of module ids that (transitively) feed any of
+          // its inputs, over all cable types
+          _upstreamMap() {
+            const direct = new Map();
+            for (const c of this.cables) {
+              if (!direct.has(c.to.mid)) direct.set(c.to.mid, new Set());
+              direct.get(c.to.mid).add(c.from.mid);
+            }
+            const full = new Map();
+            for (const m of this.modules) {
+              const seen = new Set();
+              const stack = [m.id];
+              while (stack.length)
+                for (const u of direct.get(stack.pop()) || [])
+                  if (!seen.has(u)) {
+                    seen.add(u);
+                    stack.push(u);
+                  }
+              full.set(m.id, seen);
+            }
+            return full;
           },
 
           togglePortDisabled(m, dir, name) {
