@@ -69,6 +69,7 @@ Every note would play up to 35 ms early — and *unevenly* early: events arrive 
 - **Audio output latency** (~10–30 ms of Web Audio buffering) puts Viktor slightly behind external hardware synths when layered. Physics, not the shim.
 - **Byte headroom is spent.** index.html landed at ~1.119 MB against a 1.12 MB working cap (growth ~192 KB, bundle alone 181 KB). The next feature needs its own explicit budget conversation, not an assumption of slack.
 - **Gesture-gating leans on Chromium's sticky user activation.** Mid-session engine init often runs from a scheduler timer after a qualifying click elsewhere; Safari would keep the context suspended until the Viktor UI itself is touched. Irrelevant while WebMIDI keeps λ-SEQ Chromium-only — revisit if that changes.
+- **The engine mixes very hot on headroom, quiet on output: ~-20 dBFS peak for a vel-127 note** at patch master volume (identical chain to the upstream Viktor app, so it's intrinsic — presumably headroom for the 10-voice pool). The shim compensates with `VIKTOR_MAKEUP` (3.5× on the volume slider, ~+11 dB → single note ≈ -9 dBFS) plus a `DynamicsCompressor` limiter (-3 dB threshold, 20:1) before the destination so stacked voices can't clip. The compressor adds a few ms fixed latency to the Viktor path only. Reverb-heavy patches still sit a couple dB lower: the synthesized impulse carries less energy than upstream's WAV, and tuna's wet/dry law (`dry = 1 - level/2`) leans on the wet path at high levels.
 
 ## Upgrade path if setTimeout ever feels loose
 

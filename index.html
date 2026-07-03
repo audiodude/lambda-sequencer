@@ -1132,7 +1132,7 @@
       <div :class="'view-' + view">
         <!-- TOPBAR -->
         <div id="topbar">
-          <div class="logo">λ-SEQ <span class="commit-hash">ca58574</span></div>
+          <div class="logo">λ-SEQ <span class="commit-hash">9a5efea</span></div>
           <div class="sep"></div>
           <button
             :class="['play', { on: transport.playing }]"
@@ -2254,16 +2254,27 @@
           const engine = NV1.create(AC, VIKTOR_NULL_STORE).dawEngine;
           ctx = engine.audioContext;
           // splice our volume gain between the engine's master out and the
-          // speakers — patches overwrite engine.masterVolume on load
+          // speakers — patches overwrite engine.masterVolume on load. The
+          // engine mixes ~-20 dBFS peak even at velocity 127 (headroom for
+          // its 10-voice pool), so the slider gain carries makeup
+          // (VIKTOR_MAKEUP) and a limiter keeps stacked voices off the rail.
           engine.masterVolume.disconnect();
           const volumeNode = ctx.createGain();
+          const limiter = ctx.createDynamicsCompressor();
+          limiter.threshold.value = -3;
+          limiter.knee.value = 6;
+          limiter.ratio.value = 20;
+          limiter.attack.value = 0.002;
+          limiter.release.value = 0.1;
           engine.masterVolume.connect(volumeNode);
-          volumeNode.connect(ctx.destination);
+          volumeNode.connect(limiter);
+          limiter.connect(ctx.destination);
           engine.reverb.convolver.buffer = viktorImpulse(ctx);
           viktorRt = {
             engine,
             ctx,
             volumeNode,
+            limiter,
             timers: new Set(),
             sounding: new Map(),
             loadedPatch: '',
@@ -2291,10 +2302,14 @@
         v.loadedPatch = name;
       }
 
+      // slider 1.0 → +11 dB makeup, landing a single vel-127 note near
+      // -9 dBFS instead of the engine's raw -20 (the limiter takes the rest)
+      const VIKTOR_MAKEUP = 3.5;
+
       function viktorSetVolume(vol) {
         const v = viktorEnsure();
         if (!v) return;
-        const x = clamp(+vol || 0, 0, 1);
+        const x = clamp(+vol || 0, 0, 1) * VIKTOR_MAKEUP;
         // short ramp so slider drags don't zipper mid-note
         if (v.ctx.state === 'running')
           v.volumeNode.gain.setTargetAtTime(x, v.ctx.currentTime, 0.015);
