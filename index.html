@@ -1133,7 +1133,7 @@
       <div :class="'view-' + view">
         <!-- TOPBAR -->
         <div id="topbar">
-          <div class="logo" @click="setView('rack')" title="Rack view">λ-SEQ <span class="commit-hash">6379303</span></div>
+          <div class="logo" @click="setView('rack')" title="Rack view">λ-SEQ <span class="commit-hash">569bf95</span></div>
           <div class="sep"></div>
           <button
             :class="['play', { on: transport.playing }]"
@@ -2753,6 +2753,7 @@
       const DEFAULT_PATCH = {
         "bpm": 120,
         "source": "internal",
+        "zoom": 0.83,
         "modules": [
           {
             "id": 1,
@@ -2762,7 +2763,8 @@
             "params": {
               "mode": "internal",
               "bpm": 120,
-              "extInId": ""
+              "extInId": "",
+              "extInName": ""
             },
             "disabled": {}
           },
@@ -2864,8 +2866,8 @@
           {
             "id": 3,
             "type": "QUANT",
-            "x": 849.8533271866858,
-            "y": 256.9907505531176,
+            "x": 826.1537533892583,
+            "y": 220.63063987553102,
             "params": {
               "mode": "snap"
             },
@@ -2874,22 +2876,23 @@
           {
             "id": 4,
             "type": "MIDIOUT",
-            "x": 853.9591296892614,
-            "y": 462.10010326096545,
+            "x": 927.3591193276912,
+            "y": 482.0026786506254,
             "params": {
               "deviceId": "464023706",
-              "channel": 1
+              "channel": 1,
+              "deviceName": ""
             },
             "disabled": {}
           },
           {
             "id": 5,
             "type": "EUCLID",
-            "x": 94.11586919973598,
-            "y": 319.6204840701267,
+            "x": 80.5964079525047,
+            "y": 308.3771358971321,
             "params": {
               "hits": 5,
-              "steps": 16,
+              "steps": 12,
               "rot": 0,
               "pitch": 36,
               "vel": 110,
@@ -2901,11 +2904,117 @@
           {
             "id": 6,
             "type": "MIDIOUT",
-            "x": 511.1208357678556,
-            "y": 354.6386666253034,
+            "x": 490.71735788808746,
+            "y": 300.4418217805005,
             "params": {
               "deviceId": "464023706",
-              "channel": 2
+              "channel": 2,
+              "deviceName": ""
+            },
+            "disabled": {}
+          },
+          {
+            "id": 7,
+            "type": "VIKTOR",
+            "x": 686.902752003213,
+            "y": 495.7764486563102,
+            "params": {
+              "patchName": "Electric Clavessine",
+              "volume": 0.75
+            },
+            "disabled": {}
+          },
+          {
+            "id": 8,
+            "type": "STEP",
+            "x": 64.54302531876885,
+            "y": 664.3700079889879,
+            "params": {
+              "steps": [
+                {
+                  "on": true,
+                  "pitch": 36,
+                  "vel": 100
+                },
+                {
+                  "on": false,
+                  "pitch": 43,
+                  "vel": 100
+                },
+                {
+                  "on": true,
+                  "pitch": 43,
+                  "vel": 100
+                },
+                {
+                  "on": false,
+                  "pitch": 60,
+                  "vel": 100
+                },
+                {
+                  "on": false,
+                  "pitch": 60,
+                  "vel": 100
+                },
+                {
+                  "on": false,
+                  "pitch": 60,
+                  "vel": 100
+                },
+                {
+                  "on": false,
+                  "pitch": 60,
+                  "vel": 100
+                },
+                {
+                  "on": false,
+                  "pitch": 60,
+                  "vel": 100
+                },
+                {
+                  "on": false,
+                  "pitch": 60,
+                  "vel": 100
+                },
+                {
+                  "on": false,
+                  "pitch": 60,
+                  "vel": 100
+                },
+                {
+                  "on": false,
+                  "pitch": 60,
+                  "vel": 100
+                },
+                {
+                  "on": false,
+                  "pitch": 60,
+                  "vel": 100
+                },
+                {
+                  "on": false,
+                  "pitch": 60,
+                  "vel": 100
+                },
+                {
+                  "on": false,
+                  "pitch": 60,
+                  "vel": 100
+                },
+                {
+                  "on": false,
+                  "pitch": 60,
+                  "vel": 100
+                },
+                {
+                  "on": false,
+                  "pitch": 60,
+                  "vel": 100
+                }
+              ],
+              "vel": 100,
+              "gateLen": 0.5,
+              "len": 4
             },
             "disabled": {}
           }
@@ -2918,17 +3027,6 @@
             },
             "to": {
               "mid": 2,
-              "port": "clk"
-            },
-            "type": "clock"
-          },
-          {
-            "from": {
-              "mid": 1,
-              "port": "1/16"
-            },
-            "to": {
-              "mid": 5,
               "port": "clk"
             },
             "type": "clock"
@@ -2965,6 +3063,61 @@
               "port": "in"
             },
             "type": "note"
+          },
+          {
+            "from": {
+              "mid": 3,
+              "port": "out"
+            },
+            "to": {
+              "mid": 7,
+              "port": "in"
+            },
+            "type": "note"
+          },
+          {
+            "from": {
+              "mid": 5,
+              "port": "note"
+            },
+            "to": {
+              "mid": 7,
+              "port": "in"
+            },
+            "type": "note"
+          },
+          {
+            "from": {
+              "mid": 1,
+              "port": "1"
+            },
+            "to": {
+              "mid": 8,
+              "port": "clk"
+            },
+            "type": "clock"
+          },
+          {
+            "from": {
+              "mid": 8,
+              "port": "note"
+            },
+            "to": {
+              "mid": 5,
+              "port": "pitch"
+            },
+            "type": "note"
+          },
+          {
+            "from": {
+              "mid": 1,
+              "port": "1/16"
+            },
+            "to": {
+              "mid": 5,
+              "port": "clk"
+            },
+            "type": "clock"
           }
         ]
       };
