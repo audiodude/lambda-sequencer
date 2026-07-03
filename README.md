@@ -39,6 +39,10 @@ MIDI out which is scheduled by the OS — see `learnings.md` for the analysis.
 The vendored engine bundle is regenerated with `tools/build-viktor-bundle.sh`
 (pins the upstream commit; documents the four build-time patches).
 
+The built-in demo song (what boots with no autosave) is swapped with
+`tools/set-default-patch.sh <patch.json> [index.html]` — feed it a patch
+exported with SAVE.
+
 ## Device remapping
 
 Patches reference MIDI devices by **name** so they stay portable across machines (WebMIDI port ids differ per machine/browser). On load, λ-SEQ resolves each name to a live port. If a name can't be found, it prompts you to map it to one of your devices — pick a target once and every module that used that name is remapped.
