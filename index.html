@@ -925,6 +925,18 @@
         flex-direction: column;
         gap: 16px;
       }
+      #viktor-pane .viktor-panels {
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+        overflow-y: auto;
+        max-height: 100%;
+        min-height: 0;
+      }
+      #viktor-pane .viktor-head .viktor-mid {
+        opacity: 0.55;
+        font-weight: normal;
+      }
       #viktor-pane .viktor-head {
         color: var(--dim);
         letter-spacing: 2px;
@@ -1133,7 +1145,7 @@
       <div :class="'view-' + view">
         <!-- TOPBAR -->
         <div id="topbar">
-          <div class="logo" @click="setView('rack')" title="Rack view">λ-SEQ <span class="commit-hash">1391319</span></div>
+          <div class="logo" @click="setView('rack')" title="Rack view">λ-SEQ <span class="commit-hash">666d484</span></div>
           <div class="sep"></div>
           <button
             :class="['play', { on: transport.playing }]"
@@ -1224,7 +1236,7 @@
         <!-- VIKTOR SYNTH PANE -->
         <viktor-panel
           v-show="view !== 'rack'"
-          :module="viktorModule"
+          :modules="viktorModules"
           :patch-names="viktorPatchNames"
           :error="viktorError"
           @add="addAtCenter('VIKTOR')"
@@ -2068,7 +2080,7 @@
           </span>
         </div>
         <div class="row">
-          <button @click="seqSetView('viktor')">OPEN</button>
+          <button @click="seqOpenViktor(module.id)">OPEN</button>
           <span :class="['activity', { on: module.state.activity }]"></span>
         </div>
         <template #help>
@@ -2085,35 +2097,44 @@
         <div v-if="error" class="viktor-empty">
           <p>Viktor engine unavailable in this browser (WebAudio required).</p>
         </div>
-        <div v-else-if="!module" class="viktor-empty">
+        <div v-else-if="!modules.length" class="viktor-empty">
           <p>No VIKTOR module in the rack.</p>
           <button @click="$emit('add')">+ ADD VIKTOR</button>
         </div>
-        <div v-else class="viktor-panel">
-          <div class="viktor-head">VIKTOR NV-1</div>
-          <div class="viktor-patch-big">{{ module.params.patchName }}</div>
-          <div class="row">
-            <button @click="step(-1)">‹ PREV</button>
-            <select v-model="module.params.patchName" @change="$emit('change')">
-              <option v-for="n in patchNames" :key="n" :value="n">{{ n }}</option>
-            </select>
-            <button @click="step(1)">NEXT ›</button>
+        <div v-else class="viktor-panels">
+          <div
+            v-for="m in modules"
+            :key="m.id"
+            :id="'viktor-panel-' + m.id"
+            class="viktor-panel"
+          >
+            <div class="viktor-head">
+              VIKTOR NV-1 <span class="viktor-mid">#{{ m.id }}</span>
+            </div>
+            <div class="viktor-patch-big">{{ m.params.patchName }}</div>
+            <div class="row">
+              <button @click="step(m, -1)">‹ PREV</button>
+              <select v-model="m.params.patchName" @change="$emit('change')">
+                <option v-for="n in patchNames" :key="n" :value="n">{{ n }}</option>
+              </select>
+              <button @click="step(m, 1)">NEXT ›</button>
+            </div>
+            <div class="row">
+              <label>VOLUME</label>
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.01"
+                v-model.number="m.params.volume"
+                @input="$emit('change')"
+              />
+              <span class="viktor-vol-pct">{{ Math.round(m.params.volume * 100) }}%</span>
+            </div>
+            <p class="viktor-note">
+              64 factory patches. Sound-shaping knobs land in a later phase.
+            </p>
           </div>
-          <div class="row">
-            <label>VOLUME</label>
-            <input
-              type="range"
-              min="0"
-              max="1"
-              step="0.01"
-              v-model.number="module.params.volume"
-              @input="$emit('change')"
-            />
-            <span class="viktor-vol-pct">{{ Math.round(module.params.volume * 100) }}%</span>
-          </div>
-          <p class="viktor-note">
-            64 factory patches. Sound-shaping knobs land in a later phase.
-          </p>
         </div>
       </div>
     </template>
@@ -3683,24 +3704,26 @@
         components: { ModuleFrame },
         props: baseProps,
         emits: baseEmits,
-        inject: { seqSetView: { default: () => () => {} } },
+        inject: {
+          seqSetView: { default: () => () => {} },
+          seqOpenViktor: { default: () => () => {} },
+        },
       });
 
       const ViktorPanel = defineComponent({
         template: '#tmpl-viktor-panel',
         props: {
-          module: { type: Object, default: null },
+          modules: { type: Array, default: () => [] },
           patchNames: { type: Array, default: () => [] },
           error: { type: Boolean, default: false },
         },
         emits: ['add', 'change'],
         methods: {
-          step(d) {
+          step(m, d) {
             const names = this.patchNames;
-            if (!names.length || !this.module) return;
-            const i = names.indexOf(this.module.params.patchName);
-            this.module.params.patchName =
-              names[(i + d + names.length) % names.length];
+            if (!names.length) return;
+            const i = names.indexOf(m.params.patchName);
+            m.params.patchName = names[(i + d + names.length) % names.length];
             this.$emit('change');
           },
         },
@@ -3760,6 +3783,13 @@
               return any;
             },
             seqSetView: (v) => this.setView && this.setView(v),
+            seqOpenViktor: (mid) => {
+              this.setView('viktor');
+              nextTick(() => {
+                const el = document.getElementById('viktor-panel-' + mid);
+                if (el) el.scrollIntoView({ block: 'nearest' });
+              });
+            },
           };
         },
 
@@ -3824,9 +3854,6 @@
               if (!a || !b) return '';
               return this.cubic(a.x, a.y, b.x, b.y);
             });
-          },
-          viktorModule() {
-            return this.modules.find((m) => m.type === 'VIKTOR') || null;
           },
           viktorModules() {
             return this.modules.filter((m) => m.type === 'VIKTOR');
