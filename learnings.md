@@ -81,6 +81,8 @@ Viktor's envelope primitives already accept an explicit start time (`envelope.js
 
 Playing "now" on a timer means the two clock domains (`performance.now()` for the sequencer, `AudioContext.currentTime` for the synth) never need converting. The moment two time bases must coexist in one app, immediate-play-on-a-timer sidesteps the epoch-mapping problem entirely; only the fork-based sample-accurate upgrade would need a real domain conversion.
 
+- **Sharing one AudioContext across engine instances that `new` their own:** upstream `daw.js` calls `new AudioContext()` on the constructor you pass to `NV1.create` — hand it `function () { return sharedCtx; }` and every engine lands on the shared context (a JS constructor returning an object overrides `this`). One context, one limiter, one synthesized reverb impulse buffer shared by N engines; per-engine volume gains splice in before the limiter.
+
 ---
 
 # Same-time event delivery is dependency-ordered (2026-07-03)

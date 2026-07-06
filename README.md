@@ -26,7 +26,10 @@ The two adjacent buttons are **SAVE PATCH** (downloads the current patch as JSON
 
 λ-SEQ embeds the [Viktor NV-1](https://github.com/nicroto/viktor-nv1-engine)
 synth engine (MIT), so patches can make sound with no MIDI device at all. Add a
-**VIKTOR** module and cable notes into it like a MIDI OUT. The top bar's
+**VIKTOR** module and cable notes into it like a MIDI OUT — up to four
+of them, each with its own patch and volume (they share one output limiter).
+The synth page stacks a panel per module; **OPEN** on a rack module jumps to
+its panel. The top bar's
 **RACK | BOTH | VIKTOR** switcher shows the rack, the synth page (64 factory
 patches + volume), or both side by side.
 

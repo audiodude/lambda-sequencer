@@ -149,7 +149,7 @@ Port names are exactly the strings used in `from.port` / `to.port`.
   | `deviceName` | string | `""`    | **Portable** device name (e.g. `"IAC Driver Bus 1"`). Resolved to `deviceId` per machine; unresolved names trigger the device-mapping prompt. Prefer setting this. |
   | `channel`    | number | `1`     | MIDI channel 1–16. |
 
-### VIKTOR  (built-in Viktor NV-1 synth; max one)
+### VIKTOR  (built-in Viktor NV-1 synth; max 4)
 - **inputs:** `in` (note) · **outputs:** none
 - Plays notes on the embedded [Viktor NV-1](https://github.com/nicroto/viktor-nv1-engine)
   engine — no MIDI device needed. Audio starts after the first user gesture
@@ -159,6 +159,10 @@ Port names are exactly the strings used in `from.port` / `to.port`.
   |-------------|--------|--------------------|-------|
   | `patchName` | string | `"Electric Piano"` | Factory patch name (64 available). Unknown names fall back to the default. |
   | `volume`    | number | `0.8`              | Output gain 0–1, applied after the engine's own master volume. |
+
+Up to **4 VIKTOR** modules may coexist — each is an independent engine
+instance (own patch + volume) on one shared AudioContext, summed into a
+single safety limiter. A 5th is rejected on add.
 
 ## Device portability (deviceName / extInName)
 
