@@ -1133,7 +1133,7 @@
       <div :class="'view-' + view">
         <!-- TOPBAR -->
         <div id="topbar">
-          <div class="logo" @click="setView('rack')" title="Rack view">λ-SEQ <span class="commit-hash">569bf95</span></div>
+          <div class="logo" @click="setView('rack')" title="Rack view">λ-SEQ <span class="commit-hash">2be1495</span></div>
           <div class="sep"></div>
           <button
             :class="['play', { on: transport.playing }]"
@@ -2303,9 +2303,11 @@
         v.loadedPatch = name;
       }
 
-      // slider 1.0 → +11 dB makeup, landing a single vel-127 note near
-      // -9 dBFS instead of the engine's raw -20 (the limiter takes the rest)
-      const VIKTOR_MAKEUP = 3.5;
+      // slider 1.0 → +5 dB makeup. Calibrated against program material
+      // (multi-voice demo mix peaks ~-12 dBFS raw), NOT a lone note: the
+      // old 3.5x single-note calibration left real mixes pinned at the
+      // limiter ceiling. This keeps mixes near -7 dBFS, limiter idle.
+      const VIKTOR_MAKEUP = 1.8;
 
       function viktorSetVolume(vol) {
         const v = viktorEnsure();
