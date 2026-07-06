@@ -39,7 +39,13 @@ jobs:
       - name: Build gh-pages tree
         run: |
           mkdir site
-          cp src/index.html site/index.html
+          # Stamp the exact released commit into the header as v_<hash>
+          # (matches the release tag). The local post-commit hook can only
+          # approximate this — a commit can't contain its own hash.
+          HASH=$(git -C src rev-parse --short HEAD)
+          sed -E "s|<span class=\"commit-hash\">[^<]*</span>|<span class=\"commit-hash\">v_$HASH</span>|" \
+            src/index.html > site/index.html
+          grep -q "commit-hash\">v_$HASH<" site/index.html
           echo 'lambda.audiodude.xyz' > site/CNAME
 
       - name: Push to gh-pages

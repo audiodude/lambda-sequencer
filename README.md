@@ -57,4 +57,6 @@ The repo ships a post-commit hook in `hooks/` that stamps the current short comm
 git config core.hooksPath hooks
 ```
 
-The hook amends the commit after stamping, so the hash shown in the header is the *pre-amend* hash — off by one but always close.
+The hook amends the commit after stamping, so the hash shown in the header is the *pre-amend* hash — off by one but always close. This is unavoidable at commit time (a commit can't contain its own hash), so treat a bare hash as "dev copy, roughly here".
+
+The deployed site is exact: the Pages workflow re-stamps the header at deploy time with `v_<hash>` of the released commit — the same string as the release tag — so the live header tells you precisely which release you're on.
