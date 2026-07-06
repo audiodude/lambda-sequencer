@@ -1133,7 +1133,7 @@
       <div :class="'view-' + view">
         <!-- TOPBAR -->
         <div id="topbar">
-          <div class="logo" @click="setView('rack')" title="Rack view">λ-SEQ <span class="commit-hash">750ca0a</span></div>
+          <div class="logo" @click="setView('rack')" title="Rack view">λ-SEQ <span class="commit-hash">1391319</span></div>
           <div class="sep"></div>
           <button
             :class="['play', { on: transport.playing }]"
@@ -2219,8 +2219,12 @@
       // the engine's PatchLibrary wants a persistence store; module params are
       // the single source of truth here, so hand it a black hole
       const VIKTOR_NULL_STORE = { get: () => null, set() {}, remove() {} };
-      let viktorRt = null;
+      const VIKTOR_MAX = 4;
+      // one AudioContext + safety limiter shared by every VIKTOR module;
+      // each module gets its own engine + volume gain in viktorRts
+      let viktorShared = null;
       let viktorFailed = false;
+      const viktorRts = new Map(); // module id -> runtime
 
       // 2.2s stereo exponentially-decaying noise at the context's sample rate,
       // seeded xorshift so every load sounds identical — replaces the 552 KB
@@ -2243,8 +2247,8 @@
       }
 
       // lazy + idempotent; must first run inside a user gesture (autoplay policy)
-      function viktorEnsure() {
-        if (viktorRt || viktorFailed) return viktorRt;
+      function viktorSharedEnsure() {
+        if (viktorShared || viktorFailed) return viktorShared;
         const AC = window.AudioContext || window.webkitAudioContext;
         if (!AC || !window.NV1) {
           viktorFailed = true;
@@ -2252,48 +2256,67 @@
         }
         let ctx = null;
         try {
-          const engine = NV1.create(AC, VIKTOR_NULL_STORE).dawEngine;
-          ctx = engine.audioContext;
-          // splice our volume gain between the engine's master out and the
-          // speakers — patches overwrite engine.masterVolume on load. The
-          // engine mixes ~-20 dBFS peak even at velocity 127 (headroom for
-          // its 10-voice pool), so the slider gain carries makeup
-          // (VIKTOR_MAKEUP) and a limiter keeps stacked voices off the rail.
-          engine.masterVolume.disconnect();
-          const volumeNode = ctx.createGain();
+          ctx = new AC();
+          // engines mix ~-20 dBFS/note (headroom for their voice pools); the
+          // per-module volume gain carries makeup (VIKTOR_MAKEUP) and this
+          // shared limiter keeps stacked modules/voices off the rail
           const limiter = ctx.createDynamicsCompressor();
           limiter.threshold.value = -3;
           limiter.knee.value = 6;
           limiter.ratio.value = 20;
           limiter.attack.value = 0.002;
           limiter.release.value = 0.1;
-          engine.masterVolume.connect(volumeNode);
-          volumeNode.connect(limiter);
           limiter.connect(ctx.destination);
-          engine.reverb.convolver.buffer = viktorImpulse(ctx);
-          viktorRt = {
-            engine,
-            ctx,
-            volumeNode,
-            limiter,
-            timers: new Set(),
-            sounding: new Map(),
-            loadedPatch: '',
-          };
+          viktorShared = { ctx, limiter, impulse: viktorImpulse(ctx) };
         } catch (e) {
           console.warn('Viktor init failed:', e);
           viktorFailed = true;
           try { if (ctx) ctx.close(); } catch {}
         }
-        return viktorRt;
+        return viktorShared;
+      }
+
+      function viktorEnsure(mid) {
+        const rt = viktorRts.get(mid);
+        if (rt) return rt;
+        const sh = viktorSharedEnsure();
+        if (!sh) return null;
+        try {
+          // upstream daw.js runs `new AudioContext()` on whatever constructor
+          // we hand it; a constructor returning an object overrides `this`,
+          // so every engine lands on the one shared context
+          const engine = NV1.create(function () { return sh.ctx; },
+            VIKTOR_NULL_STORE).dawEngine;
+          // splice our volume gain between the engine's master out and the
+          // shared limiter — patches overwrite engine.masterVolume on load
+          engine.masterVolume.disconnect();
+          const volumeNode = sh.ctx.createGain();
+          engine.masterVolume.connect(volumeNode);
+          volumeNode.connect(sh.limiter);
+          engine.reverb.convolver.buffer = sh.impulse;
+          const made = {
+            engine,
+            ctx: sh.ctx,
+            volumeNode,
+            timers: new Set(),
+            sounding: new Map(),
+            loadedPatch: '',
+          };
+          viktorRts.set(mid, made);
+          return made;
+        } catch (e) {
+          console.warn('Viktor engine create failed:', e);
+          viktorFailed = true;
+          return null;
+        }
       }
 
       function viktorNames() {
         return window.NV1 ? Object.keys(NV1.defaultPatches) : [];
       }
 
-      function viktorSetPatch(name) {
-        const v = viktorEnsure();
+      function viktorSetPatch(mid, name) {
+        const v = viktorEnsure(mid);
         if (!v || v.loadedPatch === name) return;
         const src =
           NV1.defaultPatches[name] ||
@@ -2309,8 +2332,8 @@
       // limiter ceiling. This keeps mixes near -7 dBFS, limiter idle.
       const VIKTOR_MAKEUP = 1.8;
 
-      function viktorSetVolume(vol) {
-        const v = viktorEnsure();
+      function viktorSetVolume(mid, vol) {
+        const v = viktorEnsure(mid);
         if (!v) return;
         const x = clamp(+vol || 0, 0, 1) * VIKTOR_MAKEUP;
         // short ramp so slider drags don't zipper mid-note
@@ -2322,8 +2345,8 @@
       // hold each event on a timer until its due time — the engine's MIDI path
       // plays immediately; forwarding on arrival would quantize the note grid
       // to the 25ms scheduler wakeups (see learnings.md)
-      function viktorNote(ev) {
-        const v = viktorEnsure();
+      function viktorNote(mid, ev) {
+        const v = viktorEnsure(mid);
         if (!v) return;
         if (v.ctx.state === 'suspended') {
           try {
@@ -2353,9 +2376,7 @@
         v.timers.add(tOff);
       }
 
-      function viktorPanic() {
-        const v = viktorRt;
-        if (!v) return;
+      function viktorPanicRt(v) {
         for (const t of v.timers) clearTimeout(t);
         v.timers.clear();
         for (const pitch of v.sounding.keys())
@@ -2363,8 +2384,27 @@
         v.sounding.clear();
       }
 
+      function viktorPanic() {
+        for (const v of viktorRts.values()) viktorPanicRt(v);
+      }
+
+      // module deleted (or patch replaced): silence it and unhook its chain.
+      // The engine has no destroy API — disconnect and let GC take it.
+      function viktorDispose(mid) {
+        const v = viktorRts.get(mid);
+        if (!v) return;
+        viktorPanicRt(v);
+        try { v.engine.masterVolume.disconnect(); } catch {}
+        try { v.volumeNode.disconnect(); } catch {}
+        viktorRts.delete(mid);
+      }
+
+      function viktorDisposeAll() {
+        for (const mid of [...viktorRts.keys()]) viktorDispose(mid);
+      }
+
       // debug handle (same idiom as window.__SEQ)
-      window.__VIKTOR = () => viktorRt;
+      window.__VIKTOR = () => viktorRts;
       // Octave numbering follows Ableton Live (and most DAWs): middle C = MIDI 60 = C3,
       // so the full range is C-2 (MIDI 0) … G8 (MIDI 127).
       function midiToNoteName(n) {
@@ -2730,16 +2770,14 @@
           }),
           onInput(ctx, m, port, ev) {
             if (port !== 'in' || ev.kind !== 'note') return;
-            if (!viktorEnsure()) {
-              // reactive once Task 5 declares viktorError in data(); a plain
-              // (harmless) instance set before that
+            if (!viktorEnsure(m.id)) {
               ctx.viktorError = viktorFailed;
               return;
             }
             // idempotent re-asserts: cheap, and self-healing across init order
-            viktorSetPatch(m.params.patchName);
-            viktorSetVolume(m.params.volume);
-            viktorNote(ev);
+            viktorSetPatch(m.id, m.params.patchName);
+            viktorSetVolume(m.id, m.params.volume);
+            viktorNote(m.id, ev);
             m.state.activity = true;
             clearTimeout(m.state._actT);
             m.state._actT = setTimeout(() => {
@@ -3790,6 +3828,9 @@
           viktorModule() {
             return this.modules.find((m) => m.type === 'VIKTOR') || null;
           },
+          viktorModules() {
+            return this.modules.filter((m) => m.type === 'VIKTOR');
+          },
           viktorPatchNames() {
             return viktorNames();
           },
@@ -3823,10 +3864,11 @@
 
           // shared by panel edits and boot-time gesture arming
           applyViktorParams() {
-            const m = this.viktorModule;
-            if (m && viktorEnsure()) {
-              viktorSetPatch(m.params.patchName);
-              viktorSetVolume(m.params.volume);
+            for (const m of this.viktorModules) {
+              if (viktorEnsure(m.id)) {
+                viktorSetPatch(m.id, m.params.patchName);
+                viktorSetVolume(m.id, m.params.volume);
+              }
             }
           },
 
@@ -3849,11 +3891,18 @@
           addModule(type, x, y, opts = {}) {
             const def = TYPES[type];
             if (!def) return null;
-            if (type === 'CLOCK' || type === 'VIKTOR') {
+            if (type === 'CLOCK') {
               const existing = this.modules.find((m) => m.type === type);
               if (existing) {
-                this.setStatus('only one ' + type + ' module', true);
+                this.setStatus('only one CLOCK module', true);
                 return existing;
+              }
+            }
+            if (type === 'VIKTOR') {
+              const viks = this.modules.filter((m) => m.type === 'VIKTOR');
+              if (viks.length >= VIKTOR_MAX) {
+                this.setStatus('max ' + VIKTOR_MAX + ' VIKTOR modules', true);
+                return viks[viks.length - 1];
               }
             }
             const id = opts.id || this.nextId++;
@@ -3883,6 +3932,10 @@
           removeModule(id) {
             const i = this.modules.findIndex((m) => m.id === id);
             if (i < 0) return;
+            // removing a VIKTOR unplugs the synth itself — silencing its
+            // ringing notes is correct here (contrast the no-panic() rule
+            // below, which is about *cable* edits)
+            if (this.modules[i].type === 'VIKTOR') viktorDispose(id);
             this.modules.splice(i, 1);
             this.cables = this.cables.filter(
               (c) => c.from.mid !== id && c.to.mid !== id,
@@ -4612,6 +4665,7 @@
           },
 
           load(data) {
+            viktorDisposeAll(); // old module ids die with the old patch
             this.modules.splice(0, this.modules.length);
             this.cables.splice(0, this.cables.length);
             this.nextId = 1;
@@ -4959,8 +5013,8 @@
 
           // Viktor can only start on a user gesture (autoplay policy); if the
           // boot patch already contains a VIKTOR module, arm a one-time init.
-          // viktorEnsure() is idempotent so double-arming is harmless.
-          if (this.viktorModule) {
+          // viktorEnsure is idempotent so double-arming is harmless.
+          if (this.viktorModules.length) {
             const arm = () => this.applyViktorParams();
             window.addEventListener('pointerdown', arm, {
               once: true,
