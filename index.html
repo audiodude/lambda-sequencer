@@ -1145,7 +1145,7 @@
       <div :class="'view-' + view">
         <!-- TOPBAR -->
         <div id="topbar">
-          <div class="logo" @click="setView('rack')" title="Rack view">λ-SEQ <span class="commit-hash">ab6cd42</span></div>
+          <div class="logo" @click="setView('rack')" title="Rack view">λ-SEQ <span class="commit-hash">bcbcc68</span></div>
           <div class="sep"></div>
           <button
             :class="['play', { on: transport.playing }]"
@@ -1674,6 +1674,22 @@
           >
             ×2
           </button>
+          <button
+            class="x2-btn"
+            :disabled="module.params.len < 2"
+            @click="rotate(1)"
+            title="Rotate the pattern one step left"
+          >
+            «
+          </button>
+          <button
+            class="x2-btn"
+            :disabled="module.params.len < 2"
+            @click="rotate(-1)"
+            title="Rotate the pattern one step right"
+          >
+            »
+          </button>
         </div>
         <template #help>
           Step sequencer driven by <b>clk</b>. Click a cell to toggle it, then
@@ -1685,7 +1701,8 @@
           fraction of the step; <b>LEN</b> is the pattern length (1–64; shift
           click the arrows or wheel to step by 4) — the yellow tick above the
           last active step marks where it ends. <b>×2</b> doubles the length and
-          duplicates the current pattern into the new half.
+          duplicates the current pattern into the new half. <b>«</b> / <b>»</b>
+          rotate the pattern one step left / right.
         </template>
       </module-frame>
     </template>
@@ -3461,6 +3478,20 @@
             for (let k = 0; k < newLen - oldLen; k++) {
               Object.assign(steps[oldLen + k], src[k]);
             }
+            this.$emit('change');
+          },
+          // rotate the active pattern (first `len` steps) one slot; dir=1
+          // shifts left (each cell takes its right neighbor), -1 shifts right
+          rotate(dir) {
+            const len = this.module.params.len;
+            if (len < 2) return;
+            this.ensureSteps();
+            const steps = this.module.params.steps;
+            const src = steps
+              .slice(0, len)
+              .map((s) => ({ on: s.on, pitch: s.pitch, vel: s.vel }));
+            for (let k = 0; k < len; k++)
+              Object.assign(steps[k], src[(k + dir + len) % len]);
             this.$emit('change');
           },
           // Click-drag painting: the cell you press down on flips, and that new
