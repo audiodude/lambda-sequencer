@@ -1145,7 +1145,7 @@
       <div :class="'view-' + view">
         <!-- TOPBAR -->
         <div id="topbar">
-          <div class="logo" @click="setView('rack')" title="Rack view">λ-SEQ <span class="commit-hash">822c69f</span></div>
+          <div class="logo" @click="setView('rack')" title="Rack view">λ-SEQ <span class="commit-hash">ab6cd42</span></div>
           <div class="sep"></div>
           <button
             :class="['play', { on: transport.playing }]"
@@ -2345,6 +2345,14 @@
         // deep-clone: loadPatch/settings-convertor transposes values in place
         v.engine.loadPatch(JSON.parse(JSON.stringify(src)), true);
         v.loadedPatch = name;
+        // upstream loadPatch ducks the instrument to -40 dB and recovers on
+        // a 0.5s time constant (anti-zipper mute for its live patch browser)
+        // — a ~2.5s fade-in on every first play / patch switch here. Replace
+        // it with a fast duck (masks post-switch settling) + ~0.3s recovery.
+        const ig = v.engine.instruments[0].outputNode.gain;
+        ig.cancelScheduledValues(0);
+        ig.setTargetAtTime(0.01, v.ctx.currentTime, 0.005);
+        ig.setTargetAtTime(1.0, v.ctx.currentTime + 0.05, 0.05);
       }
 
       // slider 1.0 → +5 dB makeup. Calibrated against program material
@@ -2406,7 +2414,15 @@
       }
 
       function viktorPanic() {
-        for (const v of viktorRts.values()) viktorPanicRt(v);
+        for (const v of viktorRts.values()) {
+          viktorPanicRt(v);
+          // choke: STOP cuts releases and delay/reverb tails, not just the
+          // held notes. The per-note viktorSetVolume re-assert restores the
+          // gain on the next play (inside the 35ms scheduling lookahead).
+          const g = v.volumeNode.gain;
+          g.cancelScheduledValues(0);
+          g.setTargetAtTime(0, v.ctx.currentTime, 0.01);
+        }
       }
 
       // module deleted (or patch replaced): silence it and unhook its chain.
