@@ -38,9 +38,11 @@
     <meta property="og:description" content="Browser-based modular MIDI sequencer with a built-in synth, in a single HTML file." />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://lambda.audiodude.xyz/" />
+    <meta property="og:site_name" content="λ-SEQ" />
     <meta property="og:image" content="https://lambda.audiodude.xyz/og.png" />
-    <meta property="og:image:width" content="650" />
-    <meta property="og:image:height" content="242" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="λ-SEQ patch editor with the λ-SEQ wordmark in purple" />
     <meta name="twitter:card" content="summary_large_image" />
     <style>
       :root {
@@ -1154,7 +1156,7 @@
       <div :class="'view-' + view">
         <!-- TOPBAR -->
         <div id="topbar">
-          <div class="logo" @click="setView('rack')" title="Rack view">λ-SEQ <span class="commit-hash">3c95dd5</span></div>
+          <div class="logo" @click="setView('rack')" title="Rack view">λ-SEQ <span class="commit-hash">5ee5fec</span></div>
           <div class="sep"></div>
           <button
             :class="['play', { on: transport.playing }]"
