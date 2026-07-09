@@ -253,6 +253,13 @@
         stroke-width: 6;
         filter: drop-shadow(0 0 8px currentColor);
       }
+      .canvas .marquee {
+        position: absolute;
+        border: 1px dashed var(--accent);
+        background: rgba(192, 132, 255, 0.08);
+        pointer-events: none;
+        z-index: 10;
+      }
 
       .module {
         position: absolute;
@@ -1156,7 +1163,7 @@
       <div :class="'view-' + view">
         <!-- TOPBAR -->
         <div id="topbar">
-          <div class="logo" @click="setView('rack')" title="Rack view">λ-SEQ <span class="commit-hash">5ee5fec</span></div>
+          <div class="logo" @click="setView('rack')" title="Rack view">λ-SEQ <span class="commit-hash">ecb8379</span></div>
           <div class="sep"></div>
           <button
             :class="['play', { on: transport.playing }]"
@@ -1196,6 +1203,9 @@
           <div class="canvas-wrap" ref="canvasWrap" :style="{ width: (canvasW * zoom) + 'px', height: (canvasH * zoom) + 'px' }">
           <div class="canvas" ref="canvas" :style="{ width: canvasW + 'px', height: canvasH + 'px', transform: 'scale(' + zoom + ')' }">
           <div class="grid-bg"></div>
+          <!-- keep this ABOVE the <component> list: in-DOM parsing leaves
+               <component/> open, so anything after it becomes dropped slot content -->
+          <div v-if="marquee" class="marquee" :style="marqueeStyle"></div>
           <svg
             id="cables"
             xmlns="http://www.w3.org/2000/svg"
@@ -1295,6 +1305,11 @@
           </div>
           <div style="margin-top: 6px">
             <kbd>Space</kbd> play/stop · drag module headers to move
+          </div>
+          <div style="margin-top: 6px">
+            Drag on empty canvas to box-select modules (<kbd>Shift</kbd> adds,
+            shift-click toggles one) — drag any header to move the group,
+            <kbd>Del</kbd> deletes it.
           </div>
           <div style="margin-top: 6px">Patches autosave to localStorage (this browser).</div>
           <div style="margin-top: 6px">
@@ -3877,6 +3892,7 @@
             selectedModuleIds: [],
             patching: null, // {dir,type,mid,port,start,cursor}
             drag: null, // {m, gx, gy}
+            marquee: null, // {x0,y0,x1,y1} canvas coords while box-selecting
             rerouteVersion: 0, // bump to recompute cable paths
             zoom: 1, // canvas zoom factor
             canvasW: 2000, // dynamic unscaled canvas extent
@@ -3912,6 +3928,16 @@
               if (!a || !b) return '';
               return this.cubic(a.x, a.y, b.x, b.y);
             });
+          },
+          marqueeStyle() {
+            const q = this.marquee;
+            if (!q) return null;
+            return {
+              left: Math.min(q.x0, q.x1) + 'px',
+              top: Math.min(q.y0, q.y1) + 'px',
+              width: Math.abs(q.x1 - q.x0) + 'px',
+              height: Math.abs(q.y1 - q.y0) + 'px',
+            };
           },
           viktorModules() {
             return this.modules.filter((m) => m.type === 'VIKTOR');
@@ -4549,17 +4575,91 @@
           },
 
           onStagePointerDown(e) {
-            // clicking empty stage/canvas deselects any selected cable
+            // empty stage/canvas: arm a marquee selection. The box only appears
+            // past a small drag threshold, so a plain click still just deselects
+            // (shift-click keeps the selection for additive box-selects).
             const t = e.target;
+            const stage = this.$refs.stage;
             if (
-              t === this.$refs.stage ||
-              t === this.$refs.canvas ||
-              t === this.$refs.canvasWrap ||
-              (t.classList && t.classList.contains('grid-bg'))
-            ) {
-              this.selectedCableIdx = null;
-              this.selectedModuleIds = [];
+              t !== stage &&
+              t !== this.$refs.canvas &&
+              t !== this.$refs.canvasWrap &&
+              !(t.classList && t.classList.contains('grid-bg'))
+            )
+              return;
+            if (t === stage) {
+              // ignore scrollbar grabs (pointer outside the client area)
+              const r = stage.getBoundingClientRect();
+              if (
+                e.clientX >= r.left + stage.clientLeft + stage.clientWidth ||
+                e.clientY >= r.top + stage.clientTop + stage.clientHeight
+              )
+                return;
             }
+            e.preventDefault();
+            this.selectedCableIdx = null;
+            const c = this.clientToCanvas(e.clientX, e.clientY);
+            this._marquee = {
+              x0: c.x,
+              y0: c.y,
+              base: e.shiftKey ? this.selectedModuleIds.slice() : [],
+              moved: false,
+            };
+            this._ptr = { x: e.clientX, y: e.clientY };
+            document.addEventListener('pointermove', this._onMarqueeMove);
+            document.addEventListener('pointerup', this._onMarqueeEnd, {
+              once: true,
+            });
+          },
+          applyMarqueeAt(cx, cy) {
+            const mq = this._marquee;
+            if (!mq) return;
+            const c = this.clientToCanvas(cx, cy);
+            if (!mq.moved) {
+              // sub-threshold jitter stays a click — no box flash on deselect
+              const z = this.canvasScale();
+              if (
+                Math.abs(c.x - mq.x0) * z < 4 &&
+                Math.abs(c.y - mq.y0) * z < 4
+              )
+                return;
+              mq.moved = true;
+              this.startAutoScroll();
+            }
+            this.marquee = { x0: mq.x0, y0: mq.y0, x1: c.x, y1: c.y };
+            // live-select: base (shift) plus every module the box touches
+            const L = Math.min(mq.x0, c.x),
+              R = Math.max(mq.x0, c.x),
+              T = Math.min(mq.y0, c.y),
+              B = Math.max(mq.y0, c.y);
+            const stage = this.$refs.stage;
+            const ids = mq.base.slice();
+            for (const m of this.modules) {
+              const el =
+                stage &&
+                stage.querySelector(`.module[data-mid="${m.id}"]`);
+              const w = el ? el.offsetWidth : 220;
+              const h = el ? el.offsetHeight : 120;
+              if (m.x < R && m.x + w > L && m.y < B && m.y + h > T) {
+                if (!ids.includes(m.id)) ids.push(m.id);
+              }
+            }
+            this.selectedModuleIds = ids;
+          },
+          _onMarqueeMove(e) {
+            if (!this._marquee) return;
+            this._ptr = { x: e.clientX, y: e.clientY };
+            this.applyMarqueeAt(e.clientX, e.clientY);
+          },
+          _onMarqueeEnd() {
+            document.removeEventListener('pointermove', this._onMarqueeMove);
+            this.stopAutoScroll();
+            const mq = this._marquee;
+            this._marquee = null;
+            this.marquee = null;
+            // plain click (never crossed the threshold): deselect, or keep the
+            // existing selection on shift-click
+            if (mq && !mq.moved) this.selectedModuleIds = mq.base;
           },
 
           // ----- canvas coords / zoom / autoscroll -----
@@ -4638,7 +4738,7 @@
           startAutoScroll() {
             if (this._autoRAF) return;
             const loop = () => {
-              if (!this.drag && !this.patching) {
+              if (!this.drag && !this.patching && !this._marquee) {
                 this._autoRAF = null;
                 return;
               }
@@ -4676,6 +4776,7 @@
             // keep the dragged thing under the (stationary) pointer as the view moves
             if (this.drag) this.applyDragAt(p.x, p.y);
             else if (this.patching) this.applyPatchAt(p.x, p.y);
+            else if (this._marquee) this.applyMarqueeAt(p.x, p.y);
           },
           zoomBy(dir) {
             const stage = this.$refs.stage;
@@ -5046,6 +5147,8 @@
           this._onDragEnd = this._onDragEnd.bind(this);
           this._onPatchMove = this._onPatchMove.bind(this);
           this._onPatchEnd = this._onPatchEnd.bind(this);
+          this._onMarqueeMove = this._onMarqueeMove.bind(this);
+          this._onMarqueeEnd = this._onMarqueeEnd.bind(this);
 
           // keyboard
           document.addEventListener('keydown', (e) => {
