@@ -46,6 +46,7 @@ jobs:
           sed -E "s|<span class=\"commit-hash\">[^<]*</span>|<span class=\"commit-hash\">v_$HASH</span>|" \
             src/index.html > site/index.html
           grep -q "commit-hash\">v_$HASH<" site/index.html
+          cp src/og.png site/og.png
           echo 'lambda.audiodude.xyz' > site/CNAME
 
       - name: Push to gh-pages
@@ -56,7 +57,7 @@ jobs:
           git init -b gh-pages
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add index.html CNAME
+          git add index.html CNAME og.png
           git commit -m "Deploy $REF"
           git remote add origin "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git"
           git push -f origin gh-pages
