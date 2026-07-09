@@ -727,6 +727,17 @@
         border-color: rgba(255, 216, 74, 0.45);
         opacity: 0.85;
       }
+      /* the .beat downbeat marker repaints border-top and would break the
+         mute/skip outlines (equal specificity, later in source) — re-assert */
+      .module.STEP .cell.mute.beat {
+        border-top: 2px solid var(--note);
+      }
+      .module.STEP .cell.skip.beat {
+        border-top: 1px dashed #3a4050;
+      }
+      .module.STEP .cell.skip.noted.beat {
+        border-top-color: rgba(255, 216, 74, 0.45);
+      }
       .module.STEP .cell:hover {
         opacity: 1;
       }
@@ -1182,7 +1193,7 @@
       <div :class="'view-' + view">
         <!-- TOPBAR -->
         <div id="topbar">
-          <div class="logo" @click="setView('rack')" title="Rack view">λ-SEQ <span class="commit-hash">92fec2f</span></div>
+          <div class="logo" @click="setView('rack')" title="Rack view">λ-SEQ <span class="commit-hash">cd42ab8</span></div>
           <div class="sep"></div>
           <button
             :class="['play', { on: transport.playing }]"
