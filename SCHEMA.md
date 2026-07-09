@@ -99,7 +99,7 @@ Port names are exactly the strings used in `from.port` / `to.port`.
 - **params:**
   | key       | type   | default | notes |
   |-----------|--------|---------|-------|
-  | `steps`   | array  | 16 × `{on:false,pitch:60,vel:100}` | Per-step `{ on:bool, pitch:0-127, vel:1-127 }`. (Step `vel` is currently unused; module `vel` is sent.) |
+  | `steps`   | array  | 16 × `{on:false,pitch:60,vel:100}` | Per-step `{ on:bool, pitch:0-127, vel:1-127, mode?:"mute"\|"skip" }`. `mode` is optional (absent = normal): `"mute"` keeps the note but plays nothing (still consumes its clock tick); `"skip"` makes the playhead jump past the step (consumes no tick, shortening the cycle). If every step within `len` is skipped, nothing plays. (Step `vel` is currently unused; module `vel` is sent.) |
   | `vel`     | number | `100`   | Velocity sent for active steps. |
   | `gateLen` | number | `0.5`   | Gate as a fraction of the step interval (auto-scales to divided/multiplied clocks). |
   | `len`     | number | `16`    | Pattern length; playback wraps at `len` (use ≤ `steps.length`). |

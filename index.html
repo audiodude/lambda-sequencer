@@ -712,6 +712,21 @@
         border-color: var(--note);
         opacity: 1;
       }
+      .module.STEP .cell.mute {
+        background: var(--bg2);
+        border: 2px solid var(--note);
+        opacity: 0.9;
+      }
+      .module.STEP .cell.skip {
+        background: repeating-linear-gradient(45deg, var(--bg2) 0 4px, var(--line) 4px 7px);
+        border: 1px dashed #3a4050;
+        opacity: 0.7;
+      }
+      .module.STEP .cell.skip.noted {
+        background: repeating-linear-gradient(45deg, var(--bg2) 0 4px, rgba(255, 216, 74, 0.38) 4px 7px);
+        border-color: rgba(255, 216, 74, 0.45);
+        opacity: 0.85;
+      }
       .module.STEP .cell:hover {
         opacity: 1;
       }
@@ -759,6 +774,10 @@
       }
       .module.STEP .labels .label.dim {
         opacity: 0.3;
+      }
+      .module.STEP .labels .label.struck {
+        opacity: 0.5;
+        text-decoration: line-through;
       }
       .module.STEP .labels .label.editing {
         overflow: visible;
@@ -1163,7 +1182,7 @@
       <div :class="'view-' + view">
         <!-- TOPBAR -->
         <div id="topbar">
-          <div class="logo" @click="setView('rack')" title="Rack view">λ-SEQ <span class="commit-hash">144b612</span></div>
+          <div class="logo" @click="setView('rack')" title="Rack view">λ-SEQ <span class="commit-hash">bf4a36d</span></div>
           <div class="sep"></div>
           <button
             :class="['play', { on: transport.playing }]"
@@ -1627,7 +1646,7 @@
             <div
               v-for="(s, j) in chunk"
               :key="j"
-              :class="['label', { on: s.on, dim: (ci*16 + j) >= module.params.len, editing: editIndex === (ci*16 + j) }]"
+              :class="['label', { on: s.on, dim: (ci*16 + j) >= module.params.len, editing: editIndex === (ci*16 + j), struck: s.on && !!s.mode }]"
               @click="s.on && startEdit(ci*16 + j)"
               @wheel.prevent="pitchStep(ci*16 + j, $event)"
             >
@@ -1660,7 +1679,7 @@
             <div
               v-for="(s, j) in chunk"
               :key="j"
-              :class="['cell', { on: s.on, beat: j % 4 === 0, alt: (Math.floor(j / 4) + ci) % 2 === 1, tail: (ci*16 + j) === module.params.len - 1, cur: module.state.pos === (ci*16 + j) }]"
+              :class="['cell', { on: s.on && !s.mode, mute: s.mode === 'mute', skip: s.mode === 'skip', noted: s.mode === 'skip' && s.on, beat: j % 4 === 0, alt: (Math.floor(j / 4) + ci) % 2 === 1, tail: (ci*16 + j) === module.params.len - 1, cur: module.state.pos === (ci*16 + j) }]"
               @pointerdown="paintStart(ci*16 + j, $event)"
               @pointerenter="paintEnter(ci*16 + j)"
               @contextmenu.prevent="clearStep(ci*16 + j)"
@@ -1721,7 +1740,10 @@
           Step sequencer driven by <b>clk</b>. Click a cell to toggle it, then
           drag to paint cells on or off. Right-click to clear, scroll-wheel over
           a cell to nudge the pitch (shift = octave). Click a note name to type
-          a value — enter or click away to keep, esc to revert.<br />
+          a value — enter or click away to keep, esc to revert.
+          <b>Alt</b>-click mutes a step (note kept, silent, still takes its
+          tick); <b>shift</b>-click skips it — the playhead jumps past, so it
+          takes no time and the cycle shortens. Both paint across a drag.<br />
           Advances one step per <b>clk</b> tick (patch a <b>DIV</b> module
           before it to change the rate). <b>GATE</b> is the note duration as a
           fraction of the step; <b>LEN</b> is the pattern length (1–64; shift
@@ -2624,9 +2646,25 @@
                 : ev.period != null
                   ? ev.period
                   : secondsPerPulse(ctx.transport.bpm);
-            m.state.pos = ((m.state.pos ?? -1) + 1) % m.params.len;
-            const step = m.params.steps[m.state.pos];
-            if (step && step.on) {
+            // advance past skipped steps (they consume no clock tick). If every
+            // step in len is skipped, play nothing and hide the playhead (-1)
+            // instead of looping forever.
+            let pos = m.state.pos ?? -1;
+            let hops = 0;
+            do {
+              pos = (pos + 1) % m.params.len;
+              hops++;
+            } while (
+              hops <= m.params.len &&
+              (m.params.steps[pos] || {}).mode === 'skip'
+            );
+            if (hops > m.params.len) {
+              m.state.pos = -1;
+              return;
+            }
+            m.state.pos = pos;
+            const step = m.params.steps[pos];
+            if (step && step.on && step.mode !== 'mute') {
               ctx.emit(m, 'note', {
                 kind: 'note',
                 time: ev.time,
@@ -3450,6 +3488,8 @@
             lastPitch: 60,
             painting: false,
             paintVal: false,
+            paintKind: 'toggle', // 'toggle' (plain) | 'mode' (alt/shift)
+            paintMode: null, // 'mute' | 'skip' | null=back-to-normal
           };
         },
         computed: {
@@ -3497,12 +3537,17 @@
             const src = [];
             for (let k = 0; k < oldLen; k++) {
               const s = steps[k] || { on: false, pitch: 60, vel: 100 };
-              src.push({ on: s.on, pitch: s.pitch, vel: s.vel });
+              src.push({ on: s.on, pitch: s.pitch, vel: s.vel, mode: s.mode });
             }
             this.module.params.len = newLen;
             this.ensureSteps();
             for (let k = 0; k < newLen - oldLen; k++) {
-              Object.assign(steps[oldLen + k], src[k]);
+              const t = steps[oldLen + k];
+              t.on = src[k].on;
+              t.pitch = src[k].pitch;
+              t.vel = src[k].vel;
+              if (src[k].mode) t.mode = src[k].mode;
+              else delete t.mode;
             }
             this.$emit('change');
           },
@@ -3515,9 +3560,16 @@
             const steps = this.module.params.steps;
             const src = steps
               .slice(0, len)
-              .map((s) => ({ on: s.on, pitch: s.pitch, vel: s.vel }));
-            for (let k = 0; k < len; k++)
-              Object.assign(steps[k], src[(k + dir + len) % len]);
+              .map((s) => ({ on: s.on, pitch: s.pitch, vel: s.vel, mode: s.mode }));
+            for (let k = 0; k < len; k++) {
+              const t = steps[k];
+              const o = src[(k + dir + len) % len];
+              t.on = o.on;
+              t.pitch = o.pitch;
+              t.vel = o.vel;
+              if (o.mode) t.mode = o.mode;
+              else delete t.mode;
+            }
             this.$emit('change');
           },
           // Click-drag painting: the cell you press down on flips, and that new
@@ -3531,7 +3583,18 @@
                 e.target.releasePointerCapture(e.pointerId);
               } catch {}
             }
-            this.paintVal = !this.module.params.steps[i].on;
+            const s = this.module.params.steps[i];
+            if (e.altKey) {
+              if (!s.on) return; // mute only means something on a step with a note
+              this.paintKind = 'mode';
+              this.paintMode = s.mode === 'mute' ? null : 'mute';
+            } else if (e.shiftKey) {
+              this.paintKind = 'mode';
+              this.paintMode = s.mode === 'skip' ? null : 'skip';
+            } else {
+              this.paintKind = 'toggle';
+              this.paintVal = !s.on;
+            }
             this.painting = true;
             this.applyPaint(i);
             window.addEventListener('pointerup', this.paintEnd);
@@ -3547,13 +3610,25 @@
           },
           applyPaint(i) {
             const s = this.module.params.steps[i];
-            if (s.on === this.paintVal) return;
-            s.on = this.paintVal;
-            if (s.on) s.pitch = this.lastPitch;
+            if (this.paintKind === 'mode') {
+              if (this.paintMode === 'mute' && !s.on) return; // pass over empty steps
+              if ((s.mode || null) === this.paintMode) return;
+              if (this.paintMode) s.mode = this.paintMode;
+              else delete s.mode;
+            } else {
+              if (s.on === this.paintVal && !s.mode) return;
+              // only steps coming up from OFF take the last-used pitch; plain-
+              // painting across a muted step unmutes it without retuning it
+              if (this.paintVal && !s.on) s.pitch = this.lastPitch;
+              s.on = this.paintVal;
+              delete s.mode; // plain painting always yields plain steps
+            }
             this.$emit('change');
           },
           clearStep(i) {
-            this.module.params.steps[i].on = false;
+            const s = this.module.params.steps[i];
+            s.on = false;
+            delete s.mode;
             this.$emit('change');
           },
           pitchStep(i, e) {
