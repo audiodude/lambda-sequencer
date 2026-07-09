@@ -1,5 +1,7 @@
 # STEP Mute & Skip Implementation Plan
 
+> **Status: COMPLETE (2026-07-09).** All tasks executed and verified (step-mode + marquee harnesses PASS, clean file:// boot, +3.2 KB). Feature commit: "STEP: per-step mute and skip states".
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** STEP steps gain two optional states — mute (note kept, silent, consumes its tick) and skip (playhead jumps past, consumes no time).
@@ -30,7 +32,7 @@ Spec: `docs/superpowers/specs/2026-07-09-step-mute-skip-design.md`.
 - Consumes: `window.__SEQ` (app instance: `addModule(type,x,y)`, `modules`, `cables`, `emit(m,port,ev)`, `transport`, `serialize()`, `load(data)`), STEP DOM (`.module[data-mid] .cell`, `.labels .label`).
 - Produces: the acceptance suite Tasks 2–3 must turn green. Tests reference step fields `s.on`, `s.pitch`, `s.mode` and CSS classes `mute`, `skip`, `noted`, `struck`.
 
-- [ ] **Step 1: Write the harness**
+- [x] **Step 1: Write the harness**
 
 Same iframe pattern as `marquee-smoke.html`. Full content:
 
@@ -192,7 +194,7 @@ Same iframe pattern as `marquee-smoke.html`. Full content:
 </html>
 ```
 
-- [ ] **Step 2: Run it — expect RED**
+- [x] **Step 2: Run it — expect RED**
 
 Run: `<scratchpad>/run-smoke.sh step-mode-smoke.html`
 Expected: `SMOKE: FAIL` listing T1 (pos sequence includes 2/5), T3 (pos not -1), T4 (no mute class), etc. T2/T5 may partially pass (off-step silence and legacy load already work) — that's fine; the suite as a whole must FAIL.
@@ -210,7 +212,7 @@ No commit (harness lives in the scratchpad, outside the repo).
 - Consumes: step objects `{on, pitch, vel, mode?}` (Task 1's field contract).
 - Produces: `m.state.pos` never equals a skipped index; `-1` when all of `len` is skipped; note emitted only when `step.on && step.mode !== 'mute'`.
 
-- [ ] **Step 1: Replace the advance/emit block**
+- [x] **Step 1: Replace the advance/emit block**
 
 The current tail of `onInput`:
 
@@ -246,7 +248,7 @@ becomes:
 
 (the `ctx.emit(...)` body inside the `if` is unchanged)
 
-- [ ] **Step 2: Run harness — T1/T2/T3 green, T4 still red**
+- [x] **Step 2: Run harness — T1/T2/T3 green, T4 still red**
 
 Run: `<scratchpad>/run-smoke.sh step-mode-smoke.html`
 Expected: `SMOKE: FAIL` where every remaining FAIL line is a T4 UI check (no T1/T2/T3/T5 failures).
@@ -264,7 +266,7 @@ No commit yet (feature incomplete; single feature commit lands in Task 3).
 - Consumes: Task 2's playback contract; Task 1's class-name contract (`mute`, `skip`, `noted`, `struck`).
 - Produces: complete user-facing feature; full harness green.
 
-- [ ] **Step 1: CSS — insert AFTER the `.module.STEP .cell.on` rule and BEFORE `.cell:hover`/`.cell.cur`** (so the `cur` inset ring still overrides on a muted cell):
+- [x] **Step 1: CSS — insert AFTER the `.module.STEP .cell.on` rule and BEFORE `.cell:hover`/`.cell.cur`** (so the `cur` inset ring still overrides on a muted cell):
 
 ```css
       .module.STEP .cell.mute {
@@ -293,7 +295,7 @@ and next to `.labels .label.dim`:
       }
 ```
 
-- [ ] **Step 2: Template class bindings** (in `#tmpl-step`)
+- [x] **Step 2: Template class bindings** (in `#tmpl-step`)
 
 Label div — add `struck`:
 
@@ -307,7 +309,7 @@ Cell div — `on` only when unmoded; add the three state classes:
 :class="['cell', { on: s.on && !s.mode, mute: s.mode === 'mute', skip: s.mode === 'skip', noted: s.mode === 'skip' && s.on, beat: j % 4 === 0, alt: (Math.floor(j / 4) + ci) % 2 === 1, tail: (ci*16 + j) === module.params.len - 1, cur: module.state.pos === (ci*16 + j) }]"
 ```
 
-- [ ] **Step 3: Paint machinery** (STEP component)
+- [x] **Step 3: Paint machinery** (STEP component)
 
 `data()` gains two fields:
 
@@ -368,7 +370,7 @@ Cell div — `on` only when unmoded; add the three state classes:
           },
 ```
 
-- [ ] **Step 4: rotate / doubleLength carry `mode`**
+- [x] **Step 4: rotate / doubleLength carry `mode`**
 
 In `doubleLength`, the `src.push(...)` line and the copy loop become:
 
@@ -406,7 +408,7 @@ In `rotate`, the map and copy loop become:
 
 (`Object.assign` is dropped in both: it can't REMOVE a stale `mode` from the target step.)
 
-- [ ] **Step 5: Help text** — in `#tmpl-step`'s `<template #help>`, after the "Right-click to clear…" sentence add:
+- [x] **Step 5: Help text** — in `#tmpl-step`'s `<template #help>`, after the "Right-click to clear…" sentence add:
 
 ```
           <b>Alt</b>-click mutes a step (note kept, silent, still takes its
@@ -414,7 +416,7 @@ In `rotate`, the map and copy loop become:
           takes no time and the cycle shortens. Both paint across a drag.
 ```
 
-- [ ] **Step 6: Run full harness — expect GREEN**
+- [x] **Step 6: Run full harness — expect GREEN**
 
 Run: `<scratchpad>/run-smoke.sh step-mode-smoke.html`
 Expected: `SMOKE: PASS`, exit 0.
@@ -429,7 +431,7 @@ No commit yet — commit lands with the docs in Task 4 so the feature ships as o
 - Modify: `SCHEMA.md` (STEP section, ~line 97)
 - Commit: `index.html`, `SCHEMA.md`
 
-- [ ] **Step 1: SCHEMA.md** — in the STEP `params` table, extend the `steps` row description and add a note. The row
+- [x] **Step 1: SCHEMA.md** — in the STEP `params` table, extend the `steps` row description and add a note. The row
 
 ```
   | `steps`   | array  | 16 × `{on:false,pitch:60,vel:100}` | Per-step `{ on:bool, pitch:0-127, vel:1-127 }`. (Step `vel` is currently unused; module `vel` is sent.) |
@@ -441,14 +443,14 @@ becomes:
   | `steps`   | array  | 16 × `{on:false,pitch:60,vel:100}` | Per-step `{ on:bool, pitch:0-127, vel:1-127, mode?:"mute"\|"skip" }`. `mode` is optional (absent = normal): `"mute"` keeps the note but plays nothing (still consumes its clock tick); `"skip"` makes the playhead jump past the step (consumes no tick, shortening the cycle). If every step within `len` is skipped, nothing plays. (Step `vel` is currently unused; module `vel` is sent.) |
 ```
 
-- [ ] **Step 2: Regression sweep**
+- [x] **Step 2: Regression sweep**
 
 Run: `<scratchpad>/run-smoke.sh step-mode-smoke.html` → `SMOKE: PASS`
 Run: `<scratchpad>/run-smoke.sh marquee-smoke.html` → `SMOKE: PASS`
 Run the file:// boot check (background headless Chrome 6 s, grep stderr for `uncaught|syntaxerror|referenceerror`) → 0 hits.
 Check byte growth: `wc -c index.html` — expect ≤ ~3 KB over the pre-task size.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add index.html SCHEMA.md
