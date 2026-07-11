@@ -70,7 +70,7 @@
 - Produces: `runModule(page, { type, params?, events })` — one-shot module-handler harness (Tasks 3–4): feeds `events = [{port, ev}, ...]` to `TYPES[type].onInput` against a fake `ctx` (`transport = {playing: true, bpm: 120}`), returns `Promise<{emitted: {port, ev}[], state, params}>`.
 - Produces: `APP_PATH` — absolute path of `index.html` (for the `file://` boot test in Task 10).
 
-- [ ] **Step 1: Create `package.json`**
+- [x] **Step 1: Create `package.json`**
 
 ```json
 {
@@ -88,12 +88,12 @@
 }
 ```
 
-- [ ] **Step 2: Install dependencies and Chromium**
+- [x] **Step 2: Install dependencies and Chromium**
 
 Run: `npm install && npx playwright install chromium`
 Expected: `package-lock.json` created; Chromium downloads without error.
 
-- [ ] **Step 3: Create `tests/server.mjs`** (static server; `file://` can't serve `page.reload()` flows cleanly, and a served origin keeps localStorage keys stable at `lambda-seq-v1:/index.html`)
+- [x] **Step 3: Create `tests/server.mjs`** (static server; `file://` can't serve `page.reload()` flows cleanly, and a served origin keeps localStorage keys stable at `lambda-seq-v1:/index.html`)
 
 ```js
 import { createReadStream } from 'node:fs';
@@ -126,7 +126,7 @@ createServer(async (req, res) => {
 }).listen(8437, '127.0.0.1');
 ```
 
-- [ ] **Step 4: Create `playwright.config.mjs`**
+- [x] **Step 4: Create `playwright.config.mjs`**
 
 ```js
 import { defineConfig, devices } from '@playwright/test';
@@ -174,7 +174,7 @@ export default defineConfig({
 });
 ```
 
-- [ ] **Step 5: Create `tests/helpers.mjs`**
+- [x] **Step 5: Create `tests/helpers.mjs`**
 
 ```js
 import { resolve } from 'node:path';
@@ -276,7 +276,7 @@ export function runModule(page, { type, params = {}, events }) {
 }
 ```
 
-- [ ] **Step 6: Write the failing smoke test — `tests/smoke.spec.mjs`**
+- [x] **Step 6: Write the failing smoke test — `tests/smoke.spec.mjs`**
 
 ```js
 import { test, expect } from '@playwright/test';
@@ -310,12 +310,12 @@ test('the default patch boots with 8 modules and tagged ports', async ({ page })
 });
 ```
 
-- [ ] **Step 7: Run test to verify it fails**
+- [x] **Step 7: Run test to verify it fails**
 
 Run: `npm test`
 Expected: FAIL — `openApp` times out waiting for `window.__SEQ_TEST__`, which doesn't exist yet.
 
-- [ ] **Step 8: Add the hook to `index.html`**
+- [x] **Step 8: Add the hook to `index.html`**
 
 At `index.html:5359`, directly after the final `tagPorts();` call and before the closing `</script>` (context shown; add only the marked lines):
 
@@ -346,12 +346,12 @@ At `index.html:5359`, directly after the final `tagPorts();` call and before the
       });
 ```
 
-- [ ] **Step 9: Run test to verify it passes**
+- [x] **Step 9: Run test to verify it passes**
 
 Run: `npm test`
 Expected: PASS (2 tests).
 
-- [ ] **Step 10: Update `.gitignore`**
+- [x] **Step 10: Update `.gitignore`**
 
 Append to `.gitignore`:
 
@@ -361,7 +361,7 @@ test-results/
 playwright-report/
 ```
 
-- [ ] **Step 11: Commit**
+- [x] **Step 11: Commit**
 
 ```bash
 git add package.json package-lock.json playwright.config.mjs tests/server.mjs tests/helpers.mjs tests/smoke.spec.mjs index.html .gitignore
@@ -381,7 +381,7 @@ git commit -m "test: Playwright infrastructure, WebMIDI stub harness, __SEQ_TEST
 
 All expected values below were hand-derived from the implementation at `index.html:2302-2607`; if one fails, suspect the test first, then read the source line range in the reference table.
 
-- [ ] **Step 1: Write the tests — `tests/helpers-fns.spec.mjs`**
+- [x] **Step 1: Write the tests — `tests/helpers-fns.spec.mjs`**
 
 ```js
 import { test, expect } from '@playwright/test';
@@ -508,17 +508,17 @@ test('buildChord voices, inversion, edges', async ({ page }) => {
 });
 ```
 
-- [ ] **Step 2: Run the new spec**
+- [x] **Step 2: Run the new spec**
 
 Run: `npx playwright test --project=chromium tests/helpers-fns.spec.mjs`
 Expected: PASS (11 tests). If an expected value fails, re-derive it from the source before changing the assertion.
 
-- [ ] **Step 3: Run the whole suite**
+- [x] **Step 3: Run the whole suite**
 
 Run: `npm test`
 Expected: PASS (13 tests).
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add tests/helpers-fns.spec.mjs
@@ -536,7 +536,7 @@ git commit -m "test: music-theory helper unit tests"
 - Consumes: `openApp`, `emptyPatch`, `runModule` from `tests/helpers.mjs`. A clock event is `{kind:'clock', time:<sec>, idx:<n>, period:<sec>}`; a note event is `{kind:'note', time, pitch, vel, gateLen}`.
 - Produces: nothing consumed by later tasks.
 
-- [ ] **Step 1: Write the tests — `tests/modules-seq.spec.mjs`**
+- [x] **Step 1: Write the tests — `tests/modules-seq.spec.mjs`**
 
 ```js
 import { test, expect } from '@playwright/test';
@@ -685,17 +685,17 @@ test('TRANSPOSE shifts and clamps pitch', async ({ page }) => {
 });
 ```
 
-- [ ] **Step 2: Run the new spec**
+- [x] **Step 2: Run the new spec**
 
 Run: `npx playwright test --project=chromium tests/modules-seq.spec.mjs`
 Expected: PASS (10 tests).
 
-- [ ] **Step 3: Run the whole suite**
+- [x] **Step 3: Run the whole suite**
 
 Run: `npm test`
 Expected: PASS (23 tests).
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add tests/modules-seq.spec.mjs
@@ -713,7 +713,7 @@ git commit -m "test: STEP/EUCLID/DIV/TRANSPOSE handler unit tests"
 - Consumes: `openApp`, `emptyPatch`, `runModule` from `tests/helpers.mjs`. A scale event is `{kind:'scale', root:<0-11>, scale:<name>}`.
 - Produces: nothing consumed by later tasks.
 
-- [ ] **Step 1: Write the tests — `tests/modules-note.spec.mjs`**
+- [x] **Step 1: Write the tests — `tests/modules-note.spec.mjs`**
 
 ```js
 import { test, expect } from '@playwright/test';
@@ -831,17 +831,17 @@ test('MIDIOUT with an unknown device sends nothing', async ({ page }) => {
 });
 ```
 
-- [ ] **Step 2: Run the new spec**
+- [x] **Step 2: Run the new spec**
 
 Run: `npx playwright test --project=chromium tests/modules-note.spec.mjs`
 Expected: PASS (8 tests).
 
-- [ ] **Step 3: Run the whole suite**
+- [x] **Step 3: Run the whole suite**
 
 Run: `npm test`
 Expected: PASS (31 tests).
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add tests/modules-note.spec.mjs
@@ -861,7 +861,7 @@ git commit -m "test: QUANT/CHORD/CHANCE/SCL/MIDIOUT handler unit tests"
 
 `load()` runs on the real app instance (it disposes Viktor runtimes, mutates the reactive module list, and schedules a debounced autosave) — that's fine; each Playwright test gets a fresh browser context, so no state leaks between tests.
 
-- [ ] **Step 1: Write the tests — `tests/patch.spec.mjs`**
+- [x] **Step 1: Write the tests — `tests/patch.spec.mjs`**
 
 ```js
 import { test, expect } from '@playwright/test';
@@ -984,17 +984,17 @@ test('only one CLOCK survives a load; nextId resumes after accepted ids', async 
 });
 ```
 
-- [ ] **Step 2: Run the new spec**
+- [x] **Step 2: Run the new spec**
 
 Run: `npx playwright test --project=chromium tests/patch.spec.mjs`
 Expected: PASS (9 tests).
 
-- [ ] **Step 3: Run the whole suite**
+- [x] **Step 3: Run the whole suite**
 
 Run: `npm test`
 Expected: PASS (40 tests).
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add tests/patch.spec.mjs
@@ -1012,7 +1012,7 @@ git commit -m "test: patch serialize/load round-trip and migration unit tests"
 - Consumes: `openApp`, `emptyPatch` from `tests/helpers.mjs`; `window.__SEQ.{addModule, duplicateModule, removeModule, cables, emit, fireMasterPulse, transport}`.
 - Produces: nothing consumed by later tasks.
 
-- [ ] **Step 1: Write the tests — `tests/rack.spec.mjs`**
+- [x] **Step 1: Write the tests — `tests/rack.spec.mjs`**
 
 ```js
 import { test, expect } from '@playwright/test';
@@ -1106,17 +1106,17 @@ test('disabled ports stop signals without removing cables', async ({ page }) => 
 });
 ```
 
-- [ ] **Step 2: Run the new spec**
+- [x] **Step 2: Run the new spec**
 
 Run: `npx playwright test --project=chromium tests/rack.spec.mjs`
 Expected: PASS (3 tests).
 
-- [ ] **Step 3: Run the whole suite**
+- [x] **Step 3: Run the whole suite**
 
 Run: `npm test`
 Expected: PASS (43 tests).
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add tests/rack.spec.mjs
@@ -1134,7 +1134,7 @@ git commit -m "test: module limits, event ordering, disabled ports"
 - Consumes: `openApp`, `emptyPatch` from `tests/helpers.mjs` (incl. the `savedPatch` option); `window.__MIDI_TEST__.statechange()`; the modal at `index.html:1382-1421` (rows `.modal-row`, per-row `<select>`, buttons named "Skip" / "Map devices").
 - Produces: nothing consumed by later tasks (Task 8 rebuilds its own CLOCK-ext wiring).
 
-- [ ] **Step 1: Write the tests — `tests/devices.spec.mjs`**
+- [x] **Step 1: Write the tests — `tests/devices.spec.mjs`**
 
 ```js
 import { test, expect } from '@playwright/test';
@@ -1248,17 +1248,17 @@ test('no prompt when the machine has no ports of the wanted kind', async ({ page
 });
 ```
 
-- [ ] **Step 2: Run the new spec**
+- [x] **Step 2: Run the new spec**
 
 Run: `npx playwright test --project=chromium tests/devices.spec.mjs`
 Expected: PASS (6 tests).
 
-- [ ] **Step 3: Run the whole suite**
+- [x] **Step 3: Run the whole suite**
 
 Run: `npm test`
 Expected: PASS (49 tests).
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add tests/devices.spec.mjs
@@ -1276,7 +1276,7 @@ git commit -m "test: device name-resolution, grouped remap modal, rename refresh
 - Consumes: `openApp`, `emptyPatch` from `tests/helpers.mjs`; `window.__MIDI_TEST__.{message, sent, clears}`; `demos/melodic-arp-chords.json` (5 MIDIOUTs on channels 1,2,3,4,10; one CHANCE at prob 80). MIDI realtime bytes: `0xfa` start, `0xf8` tick (6 ticks per 1/16 pulse — `TICKS_PER_PULSE`), `0xfc` stop.
 - Produces: nothing consumed by later tasks.
 
-- [ ] **Step 1: Write the tests — `tests/clock-panic.spec.mjs`**
+- [x] **Step 1: Write the tests — `tests/clock-panic.spec.mjs`**
 
 ```js
 import { readFile } from 'node:fs/promises';
@@ -1388,17 +1388,17 @@ test('the demo patch produces every voice from 4 bars of external clock (cycle 2
 });
 ```
 
-- [ ] **Step 2: Run the new spec**
+- [x] **Step 2: Run the new spec**
 
 Run: `npx playwright test --project=chromium tests/clock-panic.spec.mjs`
 Expected: PASS (3 tests). If the demo-patch tallies drift, re-derive from `demos/melodic-arp-chords.json` (the patch is the source of truth, not issue #4's snapshot of an older version — its CHANCE is `prob: 80` today vs 85 in the issue).
 
-- [ ] **Step 3: Run the whole suite**
+- [x] **Step 3: Run the whole suite**
 
 Run: `npm test`
 Expected: PASS (52 tests).
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add tests/clock-panic.spec.mjs
@@ -1416,7 +1416,7 @@ git commit -m "test: external clock downbeat, edit-time panic discipline, demo s
 - Consumes: `openApp`, `emptyPatch` from `tests/helpers.mjs`. Gestures (from `paintStart`, `index.html:3586-3612`): alt+click toggles `mode:'mute'` (only on steps with a note), shift+click toggles `mode:'skip'`; cell classes bound at `index.html:1693` (`on`, `mute`, `skip`, `noted`). Module root carries `data-mid`.
 - Produces: nothing consumed by later tasks.
 
-- [ ] **Step 1: Write the test — `tests/step-ui.spec.mjs`**
+- [x] **Step 1: Write the test — `tests/step-ui.spec.mjs`**
 
 ```js
 import { test, expect } from '@playwright/test';
@@ -1456,17 +1456,17 @@ test('alt/shift clicks cycle STEP cells through mute and skip', async ({ page })
 });
 ```
 
-- [ ] **Step 2: Run the new spec**
+- [x] **Step 2: Run the new spec**
 
 Run: `npx playwright test --project=chromium tests/step-ui.spec.mjs`
 Expected: PASS (1 test).
 
-- [ ] **Step 3: Run the whole suite**
+- [x] **Step 3: Run the whole suite**
 
 Run: `npm test`
 Expected: PASS (53 tests).
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add tests/step-ui.spec.mjs
@@ -1484,7 +1484,7 @@ git commit -m "test: STEP mute/skip cell gestures"
 - Consumes: `openApp`, `installAppStubs`, `emptyPatch`, `APP_PATH` from `tests/helpers.mjs`. EXPORT APP is the top-bar button labeled "EXPORT APP" (`saveStandalone`, `index.html:5010-5047`); boot precedence is `__LAMBDA_BOOT_PATCH__` > localStorage > default (`index.html:5277-5286`).
 - Produces: nothing consumed by later tasks.
 
-- [ ] **Step 1: Write the tests — `tests/export.spec.mjs`**
+- [x] **Step 1: Write the tests — `tests/export.spec.mjs`**
 
 ```js
 import { readFile } from 'node:fs/promises';
@@ -1546,17 +1546,17 @@ test('a baked boot patch beats a localStorage autosave (issue #4 caveat)', async
 });
 ```
 
-- [ ] **Step 2: Run the new spec**
+- [x] **Step 2: Run the new spec**
 
 Run: `npx playwright test --project=chromium tests/export.spec.mjs`
 Expected: PASS (3 tests).
 
-- [ ] **Step 3: Run the whole suite**
+- [x] **Step 3: Run the whole suite**
 
 Run: `npm test`
 Expected: PASS (56 tests).
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add tests/export.spec.mjs
@@ -1574,7 +1574,7 @@ git commit -m "test: EXPORT APP offline round-trip, file:// boot, boot-patch pre
 - Consumes: `openApp`, `emptyPatch` from `tests/helpers.mjs`; `window.__SEQ_TEST__.viktorRts()` (Map of module id → `{engine, ctx, volumeNode, timers, sounding, loadedPatch}`, see `index.html:2394-2401`); `window.NV1.defaultPatches` (64 factory patches); `window.__SEQ.applyViktorParams()`. Runs ONLY under the `audio` Playwright project (autoplay allowed, null audio output); `npm test` skips it.
 - Produces: nothing consumed by later tasks.
 
-- [ ] **Step 1: Write the tests — `tests/audio.spec.mjs`**
+- [x] **Step 1: Write the tests — `tests/audio.spec.mjs`**
 
 ```js
 import { test, expect } from '@playwright/test';
@@ -1636,17 +1636,17 @@ test('Viktor enforces its 4-instance limit and disposes only the removed engine'
 });
 ```
 
-- [ ] **Step 2: Run the audio project**
+- [x] **Step 2: Run the audio project**
 
 Run: `npm run test:audio`
 Expected: PASS (2 tests). These are the slowest tests in the suite (engine construction); the 30s timeouts are intentional.
 
-- [ ] **Step 3: Verify the fast suite is unaffected**
+- [x] **Step 3: Verify the fast suite is unaffected**
 
 Run: `npm test`
 Expected: PASS (56 tests) — `audio.spec.mjs` is excluded from the `chromium` project.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add tests/audio.spec.mjs
@@ -1664,7 +1664,7 @@ git commit -m "test: Viktor engine independence, limits, disposal (audio project
 **Interfaces:**
 - Consumes: `npm run test:all` (Task 1 scripts). Nothing downstream.
 
-- [ ] **Step 1: Create `.github/workflows/test.yml`**
+- [x] **Step 1: Create `.github/workflows/test.yml`**
 
 ```yaml
 name: Tests
@@ -1694,7 +1694,7 @@ jobs:
           retention-days: 7
 ```
 
-- [ ] **Step 2: Add a Testing section to `README.md`**
+- [x] **Step 2: Add a Testing section to `README.md`**
 
 Insert after the `## Development` section:
 
@@ -1721,12 +1721,12 @@ handle at the bottom of `index.html` (the mounted app itself is
 (`.github/workflows/test.yml`).
 ```
 
-- [ ] **Step 3: Verify the full suite passes locally**
+- [x] **Step 3: Verify the full suite passes locally**
 
 Run: `npm run test:all`
 Expected: PASS (58 tests). (CI can only be verified after push; the workflow is intentionally identical to the local commands.)
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add .github/workflows/test.yml README.md
