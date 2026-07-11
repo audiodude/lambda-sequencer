@@ -1,0 +1,13 @@
+{
+  "name": "lambda-sequencer-tests",
+  "private": true,
+  "engines": { "node": ">=20.11" },
+  "scripts": {
+    "test": "playwright test --project=chromium",
+    "test:audio": "playwright test --project=audio",
+    "test:all": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.61.1"
+  }
+}

@@ -1193,7 +1193,7 @@
       <div :class="'view-' + view">
         <!-- TOPBAR -->
         <div id="topbar">
-          <div class="logo" @click="setView('rack')" title="Rack view">λ-SEQ <span class="commit-hash">825b881</span></div>
+          <div class="logo" @click="setView('rack')" title="Rack view">λ-SEQ <span class="commit-hash">e25eea4</span></div>
           <div class="sep"></div>
           <button
             :class="['play', { on: transport.playing }]"
@@ -5357,6 +5357,24 @@
         subtree: true,
       });
       tagPorts();
+
+      // test handle — script-scoped pure helpers + module table + Viktor
+      // runtime accessor, exposed for the automated suite (tests/).
+      // Read-only; the app never consults this.
+      window.__SEQ_TEST__ = Object.freeze({
+        clamp,
+        secondsPerPulse,
+        midiToNoteName,
+        parseNoteName,
+        euclidPattern,
+        quantize,
+        scalePitches,
+        buildChord,
+        ROOTS,
+        SCALES,
+        TYPES,
+        viktorRts: () => viktorRts,
+      });
     </script>
   </body>
 </html>
