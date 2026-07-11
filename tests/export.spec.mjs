@@ -16,10 +16,17 @@ test('EXPORT APP reopens offline with the exported patch baked in', async ({ pag
   const downloadedPath = await download.path();
   expect(downloadedPath).toBeTruthy();
 
+  const html = await readFile(downloadedPath, 'utf8');
+  expect(html).not.toMatch(/<script[^>]+src=["']https?:/i);
+  expect(html).not.toMatch(/<link[^>]+href=["']https?:/i);
+
   // open the exported HTML in a fresh page with NO server route — offline
   const exported = await context.newPage();
+  const externalRequests = [];
+  exported.on('request', (request) => {
+    if (/^https?:/.test(request.url())) externalRequests.push(request.url());
+  });
   await installAppStubs(exported);
-  const html = await readFile(downloadedPath, 'utf8');
   await exported.setContent(html, { waitUntil: 'load' });
   await exported.waitForFunction(() => window.__SEQ);
   const result = await exported.evaluate(() => {
@@ -27,6 +34,7 @@ test('EXPORT APP reopens offline with the exported patch baked in', async ({ pag
     return { count: window.__SEQ.modules.length, x: step.x, y: step.y, first: { ...step.params.steps[0] } };
   });
   expect(result).toMatchObject({ count: 1, x: 123, y: 234, first: { on: true, pitch: 77 } });
+  expect(externalRequests).toEqual([]);
 });
 
 test('the source application boots directly from file://', async ({ page }) => {
