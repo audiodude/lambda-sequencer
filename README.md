@@ -6,6 +6,27 @@ Browser-based modular MIDI sequencer. Single-file Vue 3 app. Double-click/open `
 
 **For development only:** Serve the directory with any static server (`python3 -m http.server` works fine) and open it in a browser with WebMIDI support (Chrome / Edge). This is not necessary to simply use Lambda Sequencer, you can just double-click index.html in that case.
 
+## Testing
+
+The automated suite runs the shipped `index.html` in headless Chromium via
+Playwright — no build step, no MIDI hardware (WebMIDI is stubbed). One-time
+setup, then run:
+
+    npm install
+    npx playwright install chromium
+    npm test             # fast suite: unit + browser regression
+    npm run test:audio   # Viktor synth engine tests (slower)
+    npm run test:all     # everything (what CI runs)
+
+The suite covers the music-theory helpers, every module's signal handler,
+patch save/load migrations, device name-resolution and the remap modal,
+external MIDI clock, panic discipline, EXPORT APP round-trips, and STEP
+mute/skip gestures (the assertion checklists from issue #4). Test-only access
+to script-scoped functions goes through the frozen `window.__SEQ_TEST__`
+handle at the bottom of `index.html` (the mounted app itself is
+`window.__SEQ`). CI runs everything on every push and pull request
+(`.github/workflows/test.yml`).
+
 ## EXPORT APP
 
 The **EXPORT APP** button in the top bar downloads a single self-contained HTML file containing the entire app *plus the current patch*. The Vue runtime is already inlined in the source, so the export has no external dependencies and no `_files/` sidecar directory.
