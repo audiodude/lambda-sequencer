@@ -1197,7 +1197,7 @@
       <div :class="'view-' + view">
         <!-- TOPBAR -->
         <div id="topbar">
-          <div class="logo" @click="setView('rack')" title="Rack view">λ-SEQ <span class="commit-hash">bae90c9</span></div>
+          <div class="logo" @click="setView('rack')" title="Rack view">λ-SEQ <span class="commit-hash">92964e0</span></div>
           <div class="sep"></div>
           <button
             :class="['play', { on: transport.playing }]"
@@ -2716,6 +2716,46 @@
           getPat: (m) => JSON.parse(JSON.stringify(m.params)),
           applyPat: (m, pat) => Object.assign(m.params, JSON.parse(JSON.stringify(pat))),
         }),
+        PATTRIG: {
+          inputs: [
+            { name: 'note', type: 'note' },
+            { name: 'pat', type: 'pat' },
+          ],
+          outputs: [{ name: 'pat', type: 'pat' }],
+          defaults: () => ({
+            locked: false,
+            held: null,
+            table: [],
+          }),
+          onInput(ctx, m, port, ev) {
+            if (port === 'pat' && ev.kind === 'pat') {
+              m.params.held = ev.params;
+              return;
+            }
+            if (port !== 'note' || ev.kind !== 'note') return;
+            const flash = (pitch) => {
+              m.state.flashNote = pitch;
+              clearTimeout(m.state._flashT);
+              m.state._flashT = setTimeout(() => {
+                m.state.flashNote = null;
+              }, 200);
+            };
+            const row = m.params.table.find((r) => r.note === ev.pitch);
+            if (row) {
+              ctx.emit(m, 'pat', { kind: 'pat', time: ev.time, params: row.pat });
+              flash(ev.pitch);
+              return;
+            }
+            if (m.params.locked) return;
+            if (m.params.held == null) return;
+            const last = m.state.lastCaptureTime;
+            if (last != null && ev.time - last < 1.0) return;
+            m.params.table.push({ note: ev.pitch, pat: m.params.held });
+            m.state.lastCaptureTime = ev.time;
+            ctx.emit(m, 'pat', { kind: 'pat', time: ev.time, params: m.params.held });
+            flash(ev.pitch);
+          },
+        },
         EUCLID: {
           inputs: [
             { name: 'clk', type: 'clock' },
