@@ -840,6 +840,103 @@
         border-color: var(--note);
       }
 
+      .module.PATTRIG {
+        min-width: 220px;
+      }
+      .module.PATTRIG .stoplight {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 2px;
+        font-size: 11px;
+        letter-spacing: 0.08em;
+        color: var(--dim);
+      }
+      .module.PATTRIG .stoplight .dot {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        background: var(--note);
+        box-shadow: 0 0 6px var(--note);
+      }
+      .module.PATTRIG .stoplight.ready {
+        color: var(--good);
+      }
+      .module.PATTRIG .stoplight.ready .dot {
+        background: var(--good);
+        box-shadow: 0 0 6px var(--good);
+      }
+      .module.PATTRIG .lock-btn,
+      .module.PATTRIG .clear-all-btn {
+        flex: 1;
+        background: var(--bg2);
+        color: var(--text);
+        border: 1px solid var(--line);
+        border-radius: 4px;
+        padding: 6px 9px;
+        font: 600 11px/1 ui-monospace, monospace;
+        letter-spacing: 0.08em;
+        cursor: pointer;
+        transition:
+          background 0.1s,
+          border-color 0.1s,
+          color 0.1s;
+      }
+      .module.PATTRIG .lock-btn:hover,
+      .module.PATTRIG .clear-all-btn:hover {
+        background: var(--panel-hi);
+        border-color: var(--accent);
+      }
+      .module.PATTRIG .lock-btn.on {
+        background: var(--panel-hi);
+        color: var(--pat);
+        box-shadow: inset 0 0 0 1px var(--pat);
+      }
+      .module.PATTRIG .clear-all-btn:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+      }
+      .module.PATTRIG .pat-table {
+        max-height: 160px;
+        overflow-y: auto;
+        border: 1px solid var(--line);
+        border-radius: 4px;
+        margin-top: 4px;
+      }
+      .module.PATTRIG .table-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 4px 8px;
+        border-bottom: 1px solid var(--line);
+        font-size: 12px;
+        transition: background 0.15s;
+      }
+      .module.PATTRIG .table-row:last-child {
+        border-bottom: none;
+      }
+      .module.PATTRIG .table-row.flash {
+        background: var(--panel-hi);
+      }
+      .module.PATTRIG .table-row .x {
+        background: transparent;
+        color: var(--dim);
+        border: 0;
+        cursor: pointer;
+        font-size: 13px;
+        line-height: 1;
+        padding: 0 2px;
+      }
+      .module.PATTRIG .table-row .x:hover {
+        color: var(--bad);
+      }
+      .module.PATTRIG .pat-table-empty {
+        padding: 10px 8px;
+        color: var(--dim);
+        font-size: 11px;
+        text-align: center;
+      }
+
       .module.EUCLID .ring-wrap {
         display: flex;
         justify-content: center;
@@ -1197,7 +1294,7 @@
       <div :class="'view-' + view">
         <!-- TOPBAR -->
         <div id="topbar">
-          <div class="logo" @click="setView('rack')" title="Rack view">λ-SEQ <span class="commit-hash">92964e0</span></div>
+          <div class="logo" @click="setView('rack')" title="Rack view">λ-SEQ <span class="commit-hash">6a42248</span></div>
           <div class="sep"></div>
           <button
             :class="['play', { on: transport.playing }]"
@@ -1773,6 +1870,70 @@
           last active step marks where it ends. <b>×2</b> doubles the length and
           duplicates the current pattern into the new half. <b>«</b> / <b>»</b>
           rotate the pattern one step left / right.
+        </template>
+      </module-frame>
+    </template>
+
+    <template id="tmpl-pattrig">
+      <module-frame
+        :module="module"
+        title="PATTRIG"
+        :inputs="[{name:'note',type:'note'},{name:'pat',type:'pat'}]"
+        :outputs="[{name:'pat',type:'pat'}]"
+        @head-pointerdown="$emit('head-pointerdown', $event)"
+        @port-pointerdown="$emit('port-pointerdown', $event)"
+        @port-dblclick="$emit('port-dblclick', $event)"
+        @remove="$emit('remove')"
+        @duplicate="$emit('duplicate')"
+      >
+        <div class="stoplight" :class="{ ready: module.params.held !== null }">
+          <span class="dot"></span>
+          {{ module.params.held !== null ? 'Ready' : 'No pat' }}
+        </div>
+        <div class="row">
+          <button
+            type="button"
+            class="lock-btn"
+            :class="{ on: module.params.locked }"
+            @click="module.params.locked = !module.params.locked; $emit('change')"
+          >
+            LOCK
+          </button>
+          <button
+            type="button"
+            class="clear-all-btn"
+            :disabled="!module.params.table.length"
+            @click="clearAll"
+          >
+            CLEAR ALL
+          </button>
+        </div>
+        <div class="pat-table">
+          <div
+            v-for="row in module.params.table"
+            :key="row.note"
+            class="table-row"
+            :class="{ flash: module.state.flashNote === row.note }"
+          >
+            <span class="note-name">{{ noteName(row.note) }}</span>
+            <button type="button" class="x" @click="clearRow(row.note)">×</button>
+          </div>
+          <div v-if="!module.params.table.length" class="pat-table-empty">
+            no patterns learned
+          </div>
+        </div>
+        <template #help>
+          Send a <b>note</b> to recall a learned pattern by pitch, or capture a
+          new one: patch a <b>pat</b> signal in (e.g. a STEP's
+          <b>SNAPSHOT</b> button) — the stoplight turns green once a pat has
+          been received — then send an unseen note to assign it.<br />
+          Repeat captures on distinct unseen notes within 1s of each other are
+          ignored (only the first captures) so a fast clock can't flood the
+          table. <b>LOCK</b> stops new captures; previously learned notes
+          still recall. <b>CLEAR ALL</b> empties the table; each row's
+          <b>×</b> clears one entry.<br />
+          Patch this module's <b>pat</b> output into another STEP's
+          <b>pat</b> input to switch its pattern live by note.
         </template>
       </module-frame>
     </template>
@@ -3779,6 +3940,26 @@
         },
       });
 
+      const ModulePattrig = defineComponent({
+        template: '#tmpl-pattrig',
+        components: { ModuleFrame },
+        props: baseProps,
+        emits: baseEmits,
+        methods: {
+          noteName: midiToNoteName,
+          clearAll() {
+            this.module.params.table = [];
+            this.$emit('change');
+          },
+          clearRow(note) {
+            this.module.params.table = this.module.params.table.filter(
+              (r) => r.note !== note,
+            );
+            this.$emit('change');
+          },
+        },
+      });
+
       const ModuleEuclid = defineComponent({
         template: '#tmpl-euclid',
         components: { ModuleFrame },
@@ -3974,6 +4155,7 @@
       const COMPONENT_FOR = {
         CLOCK: ModuleClock,
         STEP: ModuleStep,
+        PATTRIG: ModulePattrig,
         EUCLID: ModuleEuclid,
         DIV: ModuleDiv,
         TRANSPOSE: ModuleTranspose,
