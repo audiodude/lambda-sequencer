@@ -65,7 +65,7 @@ Only **one CLOCK** module is allowed; extra CLOCKs are rejected on add.
 |--------|--------|-------|
 | `from` | object | `{ mid, port }` — source module id and **output** port name. |
 | `to`   | object | `{ mid, port }` — destination module id and **input** port name. |
-| `type` | string | Signal type, one of `"clock"`, `"note"`, `"scale"`. Should match the ports' types (used for cable color). |
+| `type` | string | Signal type, one of `"clock"`, `"note"`, `"scale"`, `"pat"`. Should match the ports' types (used for cable color). |
 
 Back-compat: a `from.port` of `"clk"` on a CLOCK source is rewritten to `"1/16"`.
 
@@ -74,6 +74,11 @@ Back-compat: a `from.port` of `"clk"` on a CLOCK source is rewritten to `"1/16"`
 - **clock** — a pulse `{ kind:'clock', time, idx }`. Drives step advance / gates.
 - **note** — `{ kind:'note', time, pitch (0–127), vel (1–127), gateLen (seconds) }`.
 - **scale** — `{ kind:'scale', root (0–11), scale (name) }`. Broadcast by SCL.
+- **pat** — `{ kind:'pat', time, params }`. `params` is exactly a target
+  module's `params` object (the same shape `serialize()` writes for that
+  type — for now, always STEP's `{steps, vel, gateLen, len}`). Emitted by
+  PATTRIG (recall) and by a STEP's SNAPSHOT button (capture); consumed by
+  any module wrapped with `withPat()` (STEP only, for now).
 
 Ports only connect when types match. Notes are MIDI; middle C = 60 = C3
 (Ableton octave numbering).
@@ -94,7 +99,11 @@ Port names are exactly the strings used in `from.port` / `to.port`.
   | `extInName` | string | `""`         | **Portable** device name (e.g. `"IAC Driver Bus 1"`). Resolved to `extInId` per machine; if unresolved, the device-mapping prompt offers to remap. Prefer setting this. |
 
 ### STEP  (step note sequencer)
-- **inputs:** `clk` (clock) · **outputs:** `note` (note)
+- **inputs:** `clk` (clock), `pat` (pat) · **outputs:** `note` (note), `pat` (pat)
+- A `pat` input applies `{steps, vel, gateLen, len}` onto this STEP
+  immediately (same-tick pat deliveries apply before that tick's clk-driven
+  step advance). The **SNAPSHOT** button emits this STEP's current params as
+  a `pat` signal on its `pat` output.
 - Advances one step per `clk` tick; emits the step's note if `on`.
 - **params:**
   | key       | type   | default | notes |
@@ -103,6 +112,23 @@ Port names are exactly the strings used in `from.port` / `to.port`.
   | `vel`     | number | `100`   | Velocity sent for active steps. |
   | `gateLen` | number | `0.5`   | Gate as a fraction of the step interval (auto-scales to divided/multiplied clocks). |
   | `len`     | number | `16`    | Pattern length; playback wraps at `len` (use ≤ `steps.length`). |
+
+### PATTRIG  (pattern trigger — recall a STEP pattern by note)
+- **inputs:** `note` (note), `pat` (pat) · **outputs:** `pat` (pat)
+- A table of `{note, pat}` rows. On `note`: if the pitch is a key in the
+  table, re-emits the stored `pat` immediately (always allowed, regardless
+  of `locked`). If the pitch is unseen: ignored if `locked` or if no `pat`
+  has been received yet (`held === null`); otherwise captures a new row
+  `{note: pitch, pat: held}` and emits it — debounced to at most one new
+  capture per second (`ev.time`-based) so a fast clock feeding `note` can't
+  flood the table with a burst of unseen pitches.
+- On `pat`: sample-and-holds into `held` (no output).
+- **params:**
+  | key      | type    | default | notes |
+  |----------|---------|---------|-------|
+  | `locked` | boolean | `false` | When true, unseen notes are ignored (no new captures); previously learned notes still recall. |
+  | `held`   | object\|null | `null` | Last `pat.params` received on the `pat` input (sample-and-hold). `null` until the first `pat` arrives. |
+  | `table`  | array   | `[]`    | `[{ note: 0-127, pat: {...} }, ...]`, insertion order. `pat` is a target module's `params` object (see PATTRIG signal type above). |
 
 ### EUCLID  (euclidean rhythm)
 - **inputs:** `clk` (clock), `pitch` (note) · **outputs:** `note` (note)
