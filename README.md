@@ -56,8 +56,8 @@ STEP, snapshot it into a PATTRIG's table, then trigger it later by pitch.
    STEP's **SNAPSHOT** button — the PATTRIG's stoplight flips green.
 3. Send the PATTRIG a note it hasn't seen (patch any note source into its
    `note` input) — it assigns the current held pattern to that pitch and
-   plays it immediately. Repeat with a new pattern + a new note for each
-   slot you want in the bank.
+   emits it on its `pat` output. Repeat with a new pattern + a new note for
+   each slot you want in the bank.
 4. Click **LOCK** once the bank is built, so further stray notes can't add
    more rows (notes already learned still recall).
 5. Patch the PATTRIG's `pat` output into a "player" STEP's `pat` input —
