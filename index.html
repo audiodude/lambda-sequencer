@@ -59,6 +59,7 @@
         --scale: #3fd9aa;
         --bad: #ff5050;
         --good: #5fff9c;
+        --pat: #ff5ec4;
       }
       * {
         box-sizing: border-box;
@@ -448,6 +449,9 @@
       }
       .module .jack.scale {
         color: var(--scale);
+      }
+      .module .jack.pat {
+        color: var(--pat);
       }
       .module .body {
         padding: 8px;
@@ -1193,7 +1197,7 @@
       <div :class="'view-' + view">
         <!-- TOPBAR -->
         <div id="topbar">
-          <div class="logo" @click="setView('rack')" title="Rack view">λ-SEQ <span class="commit-hash">cd42ab8</span></div>
+          <div class="logo" @click="setView('rack')" title="Rack view">λ-SEQ <span class="commit-hash">b83037a</span></div>
           <div class="sep"></div>
           <button
             :class="['play', { on: transport.playing }]"
@@ -2277,12 +2281,14 @@
         clock: '#ffffff',
         note: '#ffd84a',
         scale: '#3fd9aa',
+        pat: '#ff5ec4',
       };
       const CLOCK_BPMS = [60, 80, 90, 100, 110, 120, 128, 140, 160, 180];
       const PALETTE = [
         'CLOCK',
         'DIV',
         'STEP',
+        'PATTRIG',
         'EUCLID',
         'TRANSPOSE',
         'QUANT',
@@ -4330,7 +4336,7 @@
               // time-less events (scale re-broadcasts) sort first: they are
               // immediate state, not scheduled signals
               const tOf = (e) => (e.event.time == null ? -Infinity : e.event.time);
-              const KIND_PRI = { scale: 0, note: 1, clock: 2 };
+              const KIND_PRI = { scale: 0, pat: 1, note: 2, clock: 3 };
               const before = (a, b) => {
                 const pa = KIND_PRI[a.event.kind] ?? 0;
                 const pb = KIND_PRI[b.event.kind] ?? 0;
