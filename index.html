@@ -1197,7 +1197,7 @@
       <div :class="'view-' + view">
         <!-- TOPBAR -->
         <div id="topbar">
-          <div class="logo" @click="setView('rack')" title="Rack view">λ-SEQ <span class="commit-hash">b83037a</span></div>
+          <div class="logo" @click="setView('rack')" title="Rack view">λ-SEQ <span class="commit-hash">bae90c9</span></div>
           <div class="sep"></div>
           <button
             :class="['play', { on: transport.playing }]"
@@ -1648,8 +1648,8 @@
       <module-frame
         :module="module"
         title="STEP"
-        :inputs="[{name:'clk',type:'clock'}]"
-        :outputs="[{name:'note',type:'note'}]"
+        :inputs="[{name:'clk',type:'clock'},{name:'pat',type:'pat'}]"
+        :outputs="[{name:'note',type:'note'},{name:'pat',type:'pat'}]"
         @head-pointerdown="$emit('head-pointerdown', $event)"
         @port-pointerdown="$emit('port-pointerdown', $event)"
         @port-dblclick="$emit('port-dblclick', $event)"
@@ -1749,6 +1749,13 @@
             title="Rotate the pattern one step right"
           >
             »
+          </button>
+          <button
+            class="x2-btn"
+            @click="snapshotPat"
+            title="Emit this pattern as a pat signal (e.g. into a PATTRIG)"
+          >
+            SNAPSHOT
           </button>
         </div>
         <template #help>
@@ -2612,6 +2619,21 @@
         return notes.filter((n) => n >= 0 && n <= 127);
       }
 
+      function withPat(def) {
+        return {
+          ...def,
+          inputs: [...def.inputs, { name: 'pat', type: 'pat' }],
+          outputs: [...def.outputs, { name: 'pat', type: 'pat' }],
+          onInput(ctx, m, port, ev) {
+            if (port === 'pat' && ev.kind === 'pat') {
+              def.applyPat(m, ev.params);
+              return;
+            }
+            return def.onInput(ctx, m, port, ev);
+          },
+        };
+      }
+
       // =============================================================
       // MODULE TYPE METADATA — defaults, ports, onInput per type
       // =============================================================
@@ -2633,7 +2655,7 @@
           }),
           onInput() {},
         },
-        STEP: {
+        STEP: withPat({
           inputs: [{ name: 'clk', type: 'clock' }],
           outputs: [{ name: 'note', type: 'note' }],
           defaults: () => ({
@@ -2691,7 +2713,9 @@
               });
             }
           },
-        },
+          getPat: (m) => JSON.parse(JSON.stringify(m.params)),
+          applyPat: (m, pat) => Object.assign(m.params, JSON.parse(JSON.stringify(pat))),
+        }),
         EUCLID: {
           inputs: [
             { name: 'clk', type: 'clock' },
@@ -3441,6 +3465,18 @@
         'reroute',
       ];
 
+      const patSnapshotMixin = {
+        methods: {
+          snapshotPat() {
+            this.$root.emit(this.module, 'pat', {
+              kind: 'pat',
+              time: null,
+              params: TYPES[this.module.type].getPat(this.module),
+            });
+          },
+        },
+      };
+
       const ModuleClock = defineComponent({
         template: '#tmpl-clock',
         components: { ModuleFrame },
@@ -3497,6 +3533,7 @@
         components: { ModuleFrame },
         props: baseProps,
         emits: baseEmits,
+        mixins: [patSnapshotMixin],
         data() {
           return {
             editIndex: -1,
