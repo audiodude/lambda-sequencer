@@ -113,22 +113,22 @@ Port names are exactly the strings used in `from.port` / `to.port`.
   | `gateLen` | number | `0.5`   | Gate as a fraction of the step interval (auto-scales to divided/multiplied clocks). |
   | `len`     | number | `16`    | Pattern length; playback wraps at `len` (use ≤ `steps.length`). |
 
-### PATTRIG  (pattern trigger — recall a STEP pattern by note)
+### PATTRIG  (pattern trigger — a note-mapped pattern bank)
 - **inputs:** `note` (note), `pat` (pat) · **outputs:** `pat` (pat)
-- A table of `{note, pat}` rows. On `note`: if the pitch is a key in the
-  table, re-emits the stored `pat` immediately (always allowed, regardless
-  of `locked`). If the pitch is unseen: ignored if `locked` or if no `pat`
-  has been received yet (`held === null`); otherwise captures a new row
-  `{note: pitch, pat: held}` and emits it — debounced to at most one new
-  capture per second (`ev.time`-based) so a fast clock feeding `note` can't
-  flood the table with a burst of unseen pitches.
-- On `pat`: sample-and-holds into `held` (no output).
+- A bank of `{note, pat}` rows, assigned sequentially like a drum mapping.
+  On `pat` (e.g. a STEP's SNAPSHOT): ignored if `locked`; otherwise the pat
+  is stored at the next chromatic slot — C0 (MIDI 24) when the bank is
+  empty, else one past the highest used note. Past G8 (127) the bank is
+  full and pats are ignored. Nothing is emitted on capture.
+- On `note`: if the pitch has a row, re-emits the stored `pat` (always
+  allowed, even when `locked`); unknown pitches are ignored.
+- Clearing the highest row frees its slot for the next capture (undo); a
+  cleared middle slot stays empty, so learned notes never shift.
 - **params:**
   | key      | type    | default | notes |
   |----------|---------|---------|-------|
-  | `locked` | boolean | `false` | When true, unseen notes are ignored (no new captures); previously learned notes still recall. |
-  | `held`   | object\|null | `null` | Last `pat.params` received on the `pat` input (sample-and-hold). `null` until the first `pat` arrives. |
-  | `table`  | array   | `[]`    | `[{ note: 0-127, pat: {...} }, ...]`, insertion order. `pat` is a target module's `params` object (see PATTRIG signal type above). |
+  | `locked` | boolean | `false` | When true, incoming pats are ignored (no new captures); learned notes still recall. |
+  | `table`  | array   | `[]`    | `[{ note: 24-127, pat: {...} }, ...]`, capture order. `pat` is a target module's `params` object (see the pat signal type above). |
 
 ### EUCLID  (euclidean rhythm)
 - **inputs:** `clk` (clock), `pitch` (note) · **outputs:** `note` (note)

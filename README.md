@@ -48,20 +48,22 @@ exported with SAVE.
 
 ## Pattern recall (PATTRIG)
 
-**PATTRIG** recalls a STEP pattern live by note — build a pattern on one
-STEP, snapshot it into a PATTRIG's table, then trigger it later by pitch.
+**PATTRIG** is a pattern bank mapped like a drum kit — snapshot STEP
+patterns into sequential note slots (C0, C#0, D0…), then recall them live
+by pitch.
 
 1. Build a pattern on an "editor" STEP.
-2. Patch its `pat` output into a PATTRIG's `pat` input, and click that
-   STEP's **SNAPSHOT** button — the PATTRIG's stoplight flips green.
-3. Send the PATTRIG a note it hasn't seen (patch any note source into its
-   `note` input) — it assigns the current held pattern to that pitch and
-   emits it on its `pat` output. Repeat with a new pattern + a new note for
-   each slot you want in the bank.
-4. Click **LOCK** once the bank is built, so further stray notes can't add
-   more rows (notes already learned still recall).
-5. Patch the PATTRIG's `pat` output into a "player" STEP's `pat` input —
-   sending a learned note now reconfigures that STEP's pattern live.
+2. Patch its `pat` output into a PATTRIG's `pat` input and click the STEP's
+   **SNAPSHOT** button — the pattern lands on the next free slot (first C0,
+   then C#0, and so on; the **NEXT** readout shows where the next one goes).
+   Repeat for each pattern you want in the bank.
+3. Patch the PATTRIG's `pat` output into a "player" STEP's `pat` input, and
+   any note source into the PATTRIG's `note` input — sending a learned note
+   now reconfigures that STEP's pattern live. Unknown notes are ignored.
+4. **LOCK** stops further captures (learned notes still recall). Each row's
+   **×** clears a slot — clearing the newest row frees it for re-capture
+   (undo), while a cleared middle slot stays empty so learned notes never
+   shift.
 
 ## Device remapping
 

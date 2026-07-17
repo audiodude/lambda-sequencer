@@ -843,28 +843,8 @@
       .module.PATTRIG {
         min-width: 220px;
       }
-      .module.PATTRIG .stoplight {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        padding: 6px 2px;
-        font-size: 11px;
-        letter-spacing: 0.08em;
-        color: var(--dim);
-      }
-      .module.PATTRIG .stoplight .dot {
-        width: 9px;
-        height: 9px;
-        border-radius: 50%;
-        background: var(--note);
-        box-shadow: 0 0 6px var(--note);
-      }
-      .module.PATTRIG .stoplight.ready {
-        color: var(--good);
-      }
-      .module.PATTRIG .stoplight.ready .dot {
-        background: var(--good);
-        box-shadow: 0 0 6px var(--good);
+      .module.PATTRIG .scaledisp {
+        color: var(--pat);
       }
       .module.PATTRIG .lock-btn,
       .module.PATTRIG .clear-all-btn {
@@ -1294,7 +1274,7 @@
       <div :class="'view-' + view">
         <!-- TOPBAR -->
         <div id="topbar">
-          <div class="logo" @click="setView('rack')" title="Rack view">λ-SEQ <span class="commit-hash">79fab18</span></div>
+          <div class="logo" @click="setView('rack')" title="Rack view">λ-SEQ <span class="commit-hash">31645fd</span></div>
           <div class="sep"></div>
           <button
             :class="['play', { on: transport.playing }]"
@@ -1886,10 +1866,7 @@
         @remove="$emit('remove')"
         @duplicate="$emit('duplicate')"
       >
-        <div class="stoplight" :class="{ ready: module.params.held !== null }">
-          <span class="dot"></span>
-          {{ module.params.held !== null ? 'Ready' : 'No pat' }}
-        </div>
+        <div class="scaledisp">NEXT: {{ nextLabel }}</div>
         <div class="row">
           <button
             type="button"
@@ -1923,17 +1900,17 @@
           </div>
         </div>
         <template #help>
-          Send a <b>note</b> to recall a learned pattern by pitch, or capture a
-          new one: patch a <b>pat</b> signal in (e.g. a STEP's
-          <b>SNAPSHOT</b> button) — the stoplight turns green once a pat has
-          been received — then send an unseen note to assign it.<br />
-          Repeat captures on distinct unseen notes within 1s of each other are
-          ignored (only the first captures) so a fast clock can't flood the
-          table. <b>LOCK</b> stops new captures; previously learned notes
-          still recall. <b>CLEAR ALL</b> empties the table; each row's
-          <b>×</b> clears one entry.<br />
-          Patch this module's <b>pat</b> output into another STEP's
-          <b>pat</b> input to switch its pattern live by note.
+          A pattern bank, mapped like a drum kit. Each <b>pat</b> received
+          (e.g. from a STEP's <b>SNAPSHOT</b> button) lands on the next
+          chromatic slot from <b>C0</b> up — first C0, then C#0, D0… —
+          shown by <b>NEXT</b>. Send a <b>note</b> to re-emit the pattern
+          stored at that pitch; unknown pitches are ignored.<br />
+          <b>LOCK</b> stops new captures (learned notes still recall).
+          <b>CLEAR ALL</b> empties the bank; each row's <b>×</b> clears one
+          slot. Clearing the newest row frees its slot (undo); a cleared
+          middle slot stays empty so learned notes never shift.<br />
+          Patch the <b>pat</b> output into another STEP's <b>pat</b> input to
+          switch its pattern live by note.
         </template>
       </module-frame>
     </template>
@@ -2780,6 +2757,13 @@
         return notes.filter((n) => n >= 0 && n <= 127);
       }
 
+      // next PATTRIG capture slot: chromatic from C0 (24), one past the
+      // highest used row; > 127 means the bank is full
+      function pattrigNextSlot(table) {
+        return table.length
+          ? Math.max(...table.map((r) => r.note)) + 1
+          : 24;
+      }
       function withPat(def) {
         return {
           ...def,
@@ -2885,15 +2869,9 @@
           outputs: [{ name: 'pat', type: 'pat' }],
           defaults: () => ({
             locked: false,
-            held: null,
             table: [],
           }),
           onInput(ctx, m, port, ev) {
-            if (port === 'pat' && ev.kind === 'pat') {
-              m.params.held = ev.params;
-              return;
-            }
-            if (port !== 'note' || ev.kind !== 'note') return;
             const flash = (pitch) => {
               m.state.flashNote = pitch;
               clearTimeout(m.state._flashT);
@@ -2901,19 +2879,18 @@
                 m.state.flashNote = null;
               }, 200);
             };
-            const row = m.params.table.find((r) => r.note === ev.pitch);
-            if (row) {
-              ctx.emit(m, 'pat', { kind: 'pat', time: ev.time, params: row.pat });
-              flash(ev.pitch);
+            if (port === 'pat' && ev.kind === 'pat') {
+              if (m.params.locked) return;
+              const slot = pattrigNextSlot(m.params.table);
+              if (slot > 127) return;
+              m.params.table.push({ note: slot, pat: ev.params });
+              flash(slot);
               return;
             }
-            if (m.params.locked) return;
-            if (m.params.held == null) return;
-            const last = m.state.lastCaptureTime;
-            if (last != null && ev.time - last < 1.0) return;
-            m.params.table.push({ note: ev.pitch, pat: m.params.held });
-            m.state.lastCaptureTime = ev.time;
-            ctx.emit(m, 'pat', { kind: 'pat', time: ev.time, params: m.params.held });
+            if (port !== 'note' || ev.kind !== 'note') return;
+            const row = m.params.table.find((r) => r.note === ev.pitch);
+            if (!row) return;
+            ctx.emit(m, 'pat', { kind: 'pat', time: ev.time, params: row.pat });
             flash(ev.pitch);
           },
         },
@@ -3945,6 +3922,12 @@
         components: { ModuleFrame },
         props: baseProps,
         emits: baseEmits,
+        computed: {
+          nextLabel() {
+            const slot = pattrigNextSlot(this.module.params.table);
+            return slot > 127 ? 'FULL' : midiToNoteName(slot);
+          },
+        },
         methods: {
           noteName: midiToNoteName,
           clearAll() {
