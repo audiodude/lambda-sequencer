@@ -7,17 +7,16 @@ test('app boots clean and exposes the test handle', async ({ page }) => {
     frozen: Object.isFrozen(window.__SEQ_TEST__),
     keys: Object.keys(window.__SEQ_TEST__).sort(),
     hasSeq: typeof window.__SEQ.serialize === 'function',
-    viktorRtsIsMap: window.__SEQ_TEST__.viktorRts() instanceof Map,
+    viktorIsMap: window.__VIKTOR() instanceof Map,
   }));
   expect(shape.frozen).toBe(true);
   expect(shape.keys).toEqual([
     'ROOTS', 'SCALES', 'TYPES',
     'buildChord', 'clamp', 'euclidPattern', 'midiToNoteName',
     'parseNoteName', 'quantize', 'scalePitches', 'secondsPerPulse',
-    'viktorRts',
   ]);
   expect(shape.hasSeq).toBe(true);
-  expect(shape.viktorRtsIsMap).toBe(true);
+  expect(shape.viktorIsMap).toBe(true);
 });
 
 test('the default patch boots with 8 modules and tagged ports', async ({ page }) => {

@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { test, expect } from '@playwright/test';
-import { emptyPatch, openApp } from './helpers.mjs';
+import { emptyPatch, noteOffs, noteOns, openApp } from './helpers.mjs';
 
 const demoPatch = JSON.parse(
   await readFile(new URL('../demos/melodic-arp-chords.json', import.meta.url)),
@@ -88,20 +88,27 @@ test('the demo patch produces every voice from 4 bars of external clock (cycle 2
     outputs: [{ id: 'iac-out', name: 'IAC Driver Bus 1' }],
     random: 0.5, // pins CHANCE (prob 80): 50 < 80 → every arp note passes
   });
-  const counts = await page.evaluate(() => {
+  const sent = await page.evaluate(() => {
     window.__MIDI_TEST__.message('iac-in', [0xfa]);
     for (let i = 0; i < 64 * 6; i++) window.__MIDI_TEST__.message('iac-in', [0xf8]); // 4 bars
-    const perCh = {};
-    for (const { data } of window.__MIDI_TEST__.sent) {
-      if ((data[0] & 0xf0) !== 0x90 || data[2] === 0) continue; // note-ons only
-      const ch = (data[0] & 0x0f) + 1;
-      perCh[ch] = (perCh[ch] || 0) + 1;
-    }
-    return perCh;
+    return window.__MIDI_TEST__.sent;
   });
+  const ons = noteOns(sent);
+  const counts = {};
+  for (const { data } of ons) {
+    const ch = (data[0] & 0x0f) + 1;
+    counts[ch] = (counts[ch] || 0) + 1;
+  }
   // issue #4 cycle 2 tallies, with CHANCE pinned deterministic: ch1 pad
   // 4 chords × 4 voices; ch2 arp 32 eighths (all pass); ch3 bass 16
   // quarters; ch4 euclid 5-of-16 over 4 bars = 20; ch10 drums fire too.
   expect(counts).toMatchObject({ 1: 16, 2: 32, 3: 16, 4: 20 });
   expect(counts[10]).toBeGreaterThan(0);
+  // every fired note-on is eventually released by a matching note-off
+  const offs = noteOffs(sent);
+  for (const on of ons) {
+    expect(offs.some((off) =>
+      (off.data[0] & 0x0f) === (on.data[0] & 0x0f) && off.data[1] === on.data[1],
+    )).toBe(true);
+  }
 });

@@ -12,7 +12,7 @@ test('Viktor instances are independent engines on one shared AudioContext', asyn
     app.addModule('VIKTOR', 0, 0, { params: { patchName: 'Electric Piano', volume: 0.5 } });
     app.addModule('VIKTOR', 0, 0, { params: { patchName: 'Electric Clavessine', volume: 0.8 } });
     app.applyViktorParams();
-    const runtimes = [...window.__SEQ_TEST__.viktorRts().values()];
+    const runtimes = [...window.__VIKTOR().values()];
     return {
       size: runtimes.length,
       separateEngines: runtimes[0].engine !== runtimes[1].engine,
@@ -36,15 +36,15 @@ test('Viktor enforces its 4-instance limit and disposes only the removed engine'
     const app = window.__SEQ;
     const modules = Array.from({ length: 5 }, () => app.addModule('VIKTOR', 0, 0));
     app.applyViktorParams();
-    const before = window.__SEQ_TEST__.viktorRts().size;
+    const before = window.__VIKTOR().size;
     const removedId = modules[1].id;
     app.removeModule(removedId);
     return {
       moduleCount: app.modules.filter((m) => m.type === 'VIKTOR').length,
       fifthWasExisting: modules[4].id === modules[3].id,
       before,
-      after: window.__SEQ_TEST__.viktorRts().size,
-      removedPresent: window.__SEQ_TEST__.viktorRts().has(removedId),
+      after: window.__VIKTOR().size,
+      removedPresent: window.__VIKTOR().has(removedId),
     };
   });
   expect(result).toEqual({

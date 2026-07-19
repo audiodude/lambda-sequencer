@@ -1,6 +1,7 @@
 {
   "name": "lambda-sequencer-tests",
   "private": true,
+  "type": "module",
   "engines": { "node": ">=20.11" },
   "scripts": {
     "test": "playwright test --project=chromium",

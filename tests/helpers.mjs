@@ -70,6 +70,16 @@ export function emptyPatch(modules = [], cables = []) {
   return { bpm: 120, source: 'internal', zoom: 1, modules, cables };
 }
 
+// Selectors over recorded MIDI traffic ({ id, data, timestamp }) from the
+// WebMIDI stub, so specs assert on musical meaning instead of raw byte masks.
+export function noteOns(messages) {
+  return messages.filter(({ data }) => (data[0] & 0xf0) === 0x90 && data[2] > 0);
+}
+
+export function noteOffs(messages) {
+  return messages.filter(({ data }) => (data[0] & 0xf0) === 0x80);
+}
+
 // Drive one module's onInput handler against a fake ctx, entirely in-page.
 // events: [{ port, ev }, ...] delivered in order.
 // Returns { emitted, state, params } (JSON-serializable snapshots).
