@@ -52,14 +52,19 @@ exported with SAVE.
 patterns into sequential note slots (C0, C#0, D0…), then recall them live
 by pitch.
 
-1. Build a pattern on an "editor" STEP.
-2. Patch its `pat` output into a PATTRIG's `pat` input and click the STEP's
-   **SNAPSHOT** button — the pattern lands on the next free slot (first C0,
-   then C#0, and so on; the **NEXT** readout shows where the next one goes).
-   Repeat for each pattern you want in the bank.
+1. Add a PATTRIG — STEPs only show their `pat` jacks and **SNAPSHOT** button
+   while one is on the canvas, so patches without pattern recall stay
+   uncluttered.
+2. Build a pattern on an "editor" STEP, patch its `pat` output into the
+   PATTRIG's `pat` input, and click the STEP's **SNAPSHOT** button — the
+   pattern lands on the next free slot (first C0, then C#0, and so on; the
+   **NEXT** readout shows where the next one goes). Repeat for each pattern
+   you want in the bank. Each row lists its note and the module type it was
+   captured from.
 3. Patch the PATTRIG's `pat` output into a "player" STEP's `pat` input, and
    any note source into the PATTRIG's `note` input — sending a learned note
-   now reconfigures that STEP's pattern live. Unknown notes are ignored.
+   now reconfigures that STEP's pattern live (unknown notes are ignored).
+   Clicking a row sends its pattern directly, no note needed.
 4. **LOCK** stops further captures (learned notes still recall). Each row's
    **×** clears a slot — clearing the newest row frees it for re-capture
    (undo), while a cleared middle slot stays empty so learned notes never

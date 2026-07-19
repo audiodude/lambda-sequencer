@@ -411,6 +411,12 @@
       .module .port.disabled .lbl {
         text-decoration: line-through;
       }
+      /* dead = the far end of this port's cable is muted; keep the jack's
+         normal look (only its OWN dashed/struck style means "click me to
+         unmute") so toggling either end always gives visible feedback */
+      .module .port.dead {
+        opacity: 0.35;
+      }
       .module .jack {
         position: relative;
         width: 14px;
@@ -886,11 +892,21 @@
       .module.PATTRIG .table-row {
         display: flex;
         align-items: center;
-        justify-content: space-between;
         padding: 4px 8px;
         border-bottom: 1px solid var(--line);
         font-size: 12px;
         transition: background 0.15s;
+        cursor: pointer;
+      }
+      .module.PATTRIG .table-row:hover {
+        background: var(--panel-hi);
+      }
+      .module.PATTRIG .table-row .pat-src {
+        flex: 1;
+        margin-left: 8px;
+        color: var(--dim);
+        font-size: 10px;
+        letter-spacing: 0.05em;
       }
       .module.PATTRIG .table-row:last-child {
         border-bottom: none;
@@ -1274,7 +1290,7 @@
       <div :class="'view-' + view">
         <!-- TOPBAR -->
         <div id="topbar">
-          <div class="logo" @click="setView('rack')" title="Rack view">λ-SEQ <span class="commit-hash">31645fd</span></div>
+          <div class="logo" @click="setView('rack')" title="Rack view">λ-SEQ <span class="commit-hash">0d4b441</span></div>
           <div class="sep"></div>
           <button
             :class="['play', { on: transport.playing }]"
@@ -1620,7 +1636,7 @@
             <div
               v-for="p in inputs"
               :key="p.name"
-              :class="['port', { disabled: portDisabled('in', p.name) || inDead(p.name) }]"
+              :class="['port', { disabled: portDisabled('in', p.name), dead: inDead(p.name) }]"
               @pointerdown="$emit('port-pointerdown', { port: p.name, dir: 'in',  type: p.type, event: $event })"
             >
               <div
@@ -1634,7 +1650,7 @@
             <div
               v-for="p in outputs"
               :key="p.name"
-              :class="['port', { disabled: portDisabled('out', p.name) || outDead(p.name) }]"
+              :class="['port', { disabled: portDisabled('out', p.name), dead: outDead(p.name) }]"
               @pointerdown="$emit('port-pointerdown', { port: p.name, dir: 'out', type: p.type, event: $event })"
             >
               <div class="lbl">{{ p.name }}</div>
@@ -1670,14 +1686,14 @@
           <button
             type="button"
             :class="{ on: modeSel === 'internal' }"
-            @click="modeSel = 'internal'; onModeChange()"
+            @click="setMode('internal')"
           >
             BPM
           </button>
           <button
             type="button"
             :class="{ on: modeSel === 'ext' }"
-            @click="modeSel = 'ext'; onModeChange()"
+            @click="setMode('ext')"
           >
             EXT
           </button>
@@ -1725,8 +1741,8 @@
       <module-frame
         :module="module"
         title="STEP"
-        :inputs="[{name:'clk',type:'clock'},{name:'pat',type:'pat'}]"
-        :outputs="[{name:'note',type:'note'},{name:'pat',type:'pat'}]"
+        :inputs="frameInputs"
+        :outputs="frameOutputs"
         @head-pointerdown="$emit('head-pointerdown', $event)"
         @port-pointerdown="$emit('port-pointerdown', $event)"
         @port-dblclick="$emit('port-dblclick', $event)"
@@ -1828,6 +1844,7 @@
             »
           </button>
           <button
+            v-if="patVisible"
             class="x2-btn"
             @click="snapshotPat"
             title="Emit this pattern as a pat signal (e.g. into a PATTRIG)"
@@ -1891,9 +1908,12 @@
             :key="row.note"
             class="table-row"
             :class="{ flash: module.state.flashNote === row.note }"
+            title="Send this pattern"
+            @click="recallRow(row)"
           >
             <span class="note-name">{{ noteName(row.note) }}</span>
-            <button type="button" class="x" @click="clearRow(row.note)">×</button>
+            <span class="pat-src">{{ row.type || 'STEP' }}</span>
+            <button type="button" class="x" @click.stop="clearRow(row.note)">×</button>
           </div>
           <div v-if="!module.params.table.length" class="pat-table-empty">
             no patterns learned
@@ -1904,7 +1924,10 @@
           (e.g. from a STEP's <b>SNAPSHOT</b> button) lands on the next
           chromatic slot from <b>C0</b> up — first C0, then C#0, D0… —
           shown by <b>NEXT</b>. Send a <b>note</b> to re-emit the pattern
-          stored at that pitch; unknown pitches are ignored.<br />
+          stored at that pitch (unknown pitches are ignored), or click a row
+          to send it directly. Each row shows the module type it was captured
+          from. STEPs only show their pat jacks and SNAPSHOT button while a
+          PATTRIG is in the patch.<br />
           <b>LOCK</b> stops new captures (learned notes still recall).
           <b>CLEAR ALL</b> empties the bank; each row's <b>×</b> clears one
           slot. Clearing the newest row frees its slot (undo); a cleared
@@ -2883,14 +2906,19 @@
               if (m.params.locked) return;
               const slot = pattrigNextSlot(m.params.table);
               if (slot > 127) return;
-              m.params.table.push({ note: slot, pat: ev.params });
+              m.params.table.push({ note: slot, pat: ev.params, type: ev.type });
               flash(slot);
               return;
             }
             if (port !== 'note' || ev.kind !== 'note') return;
             const row = m.params.table.find((r) => r.note === ev.pitch);
             if (!row) return;
-            ctx.emit(m, 'pat', { kind: 'pat', time: ev.time, params: row.pat });
+            ctx.emit(m, 'pat', {
+              kind: 'pat',
+              time: ev.time,
+              type: row.type,
+              params: row.pat,
+            });
             flash(ev.pitch);
           },
         },
@@ -3649,6 +3677,7 @@
             this.$root.emit(this.module, 'pat', {
               kind: 'pat',
               time: null,
+              type: this.module.type,
               params: TYPES[this.module.type].getPat(this.module),
             });
           },
@@ -3699,7 +3728,11 @@
             this.$emit('change');
             this.$root.applyClockParams(this.module);
           },
-          onModeChange() {
+          // no-op when the mode didn't change — a re-click on the active
+          // segment must not stop the transport
+          setMode(v) {
+            if (this.modeSel === v) return;
+            this.modeSel = v;
             this.$root.stopTransport();
             this.onSrcChange();
           },
@@ -3725,6 +3758,31 @@
           };
         },
         computed: {
+          // pat is an opt-in workflow: STEP shows its pat jacks + SNAPSHOT only
+          // while a PATTRIG is in the patch — or while a pat cable still
+          // touches this module, so removing the last PATTRIG can't strand a
+          // cable on jacks that no longer render
+          patVisible() {
+            const id = this.module.id;
+            return (
+              this.$root.modules.some((m) => m.type === 'PATTRIG') ||
+              this.$root.cables.some(
+                (c) =>
+                  (c.to.mid === id && c.to.port === 'pat') ||
+                  (c.from.mid === id && c.from.port === 'pat'),
+              )
+            );
+          },
+          frameInputs() {
+            const io = [{ name: 'clk', type: 'clock' }];
+            if (this.patVisible) io.push({ name: 'pat', type: 'pat' });
+            return io;
+          },
+          frameOutputs() {
+            const io = [{ name: 'note', type: 'note' }];
+            if (this.patVisible) io.push({ name: 'pat', type: 'pat' });
+            return io;
+          },
           visibleCount() {
             return Math.max(16, Math.ceil(this.module.params.len / 16) * 16);
           },
@@ -3930,6 +3988,20 @@
         },
         methods: {
           noteName: midiToNoteName,
+          recallRow(row) {
+            this.$root.emit(this.module, 'pat', {
+              kind: 'pat',
+              time: null,
+              type: row.type,
+              params: row.pat,
+            });
+            const s = this.module.state;
+            s.flashNote = row.note;
+            clearTimeout(s._flashT);
+            s._flashT = setTimeout(() => {
+              s.flashNote = null;
+            }, 200);
+          },
           clearAll() {
             this.module.params.table = [];
             this.$emit('change');

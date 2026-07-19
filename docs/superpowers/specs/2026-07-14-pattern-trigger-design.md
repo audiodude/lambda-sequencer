@@ -6,6 +6,11 @@ see the PATTRIG module section and Rejected alternatives for the change and
 its rationale. The signal type, STEP integration, and `KIND_PRI` sections
 are unchanged from v1.
 
+**Revised 2026-07-19 (v2.1):** pat events and table rows carry the source
+module `type` (shown per row); clicking a row sends its pattern directly;
+STEP's pat jacks + SNAPSHOT render only while a PATTRIG is in the patch
+(or a pat cable already touches that STEP).
+
 ## Problem
 
 Recall a different STEP pattern by note — a classic "pattern change" /
@@ -17,8 +22,12 @@ configuration and re-trigger it live; patterns are edited in place only.
 Added alongside `clock`/`note`/`scale`:
 
 ```js
-{ kind: 'pat', time, params }
+{ kind: 'pat', time, type, params }
 ```
+
+`type` (v2.1) is the module type the pattern was captured from (`'STEP'`);
+PATTRIG stores it per row and re-emits it on recall. Absent on legacy data —
+readers treat missing as `'STEP'`.
 
 `params` is exactly a target module's `params` object — the same shape
 `serialize()` already writes for that module type (for v1, always STEP's
@@ -44,7 +53,7 @@ already knows its own shape from its cable.
 ```js
 defaults: () => ({
   locked: false,
-  table: [],    // [{ note: 24-127, pat: {...} }, ...], capture order
+  table: [],    // [{ note: 24-127, pat: {...}, type: 'STEP' }, ...], capture order
 })
 ```
 
@@ -55,8 +64,10 @@ full and the pat is ignored. Push `{ note: slot, pat: ev.params }` and flash
 the new row. Nothing is emitted on capture — recall is the note input's job.
 
 **On `note` input (recall):** if `note.pitch` has a row, emit the stored pat:
-`ctx.emit(m, 'pat', { kind:'pat', time: ev.time, params: row.pat })` — always
-allowed, even when `locked`. Unknown pitches are ignored entirely.
+`ctx.emit(m, 'pat', { kind:'pat', time: ev.time, type: row.type, params:
+row.pat })` — always allowed, even when `locked`. Unknown pitches are ignored
+entirely. Clicking a table row (v2.1) performs the same emit directly from
+the panel, plus the row flash.
 
 **Slot reuse:** because the next slot derives from the current highest row,
 clearing the *newest* row frees its slot for the next capture (a free "undo
@@ -145,12 +156,19 @@ ports on its template. No change to PATTRIG or the shared framework pieces.
   a `--pat`-colored override.
 - **LOCK toggle**, bound to `params.locked`.
 - **CLEAR ALL** button next to LOCK (empties `table`).
-- **Table list**: one row per `table` entry, note name via the existing
-  `noteName` (`midiToNoteName`) helper, with a per-row `[x]` clear button.
-  The most recently touched row (recall or new capture) gets a brief flash
-  highlight, mirroring STEP's existing `pitchFlash`/`voicesFlash` convention.
+- **Table list**: one row per `table` entry — note name via the existing
+  `noteName` (`midiToNoteName`) helper, the source module type (v2.1;
+  `'STEP'` fallback for legacy rows), and a per-row `[x]` clear button.
+  Clicking the row sends its pattern. The most recently touched row (recall
+  or new capture) gets a brief flash highlight, mirroring STEP's existing
+  `pitchFlash`/`voicesFlash` convention.
 
-**STEP panel:** the SNAPSHOT button described above.
+**STEP panel:** the SNAPSHOT button described above. v2.1: STEP's pat
+jacks and SNAPSHOT button render only while a PATTRIG module is on the
+canvas — or while a pat cable still touches that STEP, so removing the last
+PATTRIG can't strand a cable on jacks that no longer render (computed
+`frameInputs`/`frameOutputs`, the EUCLID pattern). The `TYPES`-level ports
+are unconditional; only the rendering is.
 
 ## Docs
 

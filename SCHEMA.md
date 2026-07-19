@@ -74,11 +74,13 @@ Back-compat: a `from.port` of `"clk"` on a CLOCK source is rewritten to `"1/16"`
 - **clock** — a pulse `{ kind:'clock', time, idx }`. Drives step advance / gates.
 - **note** — `{ kind:'note', time, pitch (0–127), vel (1–127), gateLen (seconds) }`.
 - **scale** — `{ kind:'scale', root (0–11), scale (name) }`. Broadcast by SCL.
-- **pat** — `{ kind:'pat', time, params }`. `params` is exactly a target
-  module's `params` object (the same shape `serialize()` writes for that
-  type — for now, always STEP's `{steps, vel, gateLen, len}`). Emitted by
-  PATTRIG (recall) and by a STEP's SNAPSHOT button (capture); consumed by
-  any module wrapped with `withPat()` (STEP only, for now).
+- **pat** — `{ kind:'pat', time, type, params }`. `params` is exactly a
+  target module's `params` object (the same shape `serialize()` writes for
+  that type — for now, always STEP's `{steps, vel, gateLen, len}`); `type`
+  is the module type it was captured from (`"STEP"`; may be absent on
+  legacy data). Emitted by PATTRIG (recall) and by a STEP's SNAPSHOT button
+  (capture); consumed by any module wrapped with `withPat()` (STEP only,
+  for now).
 
 Ports only connect when types match. Notes are MIDI; middle C = 60 = C3
 (Ableton octave numbering).
@@ -103,7 +105,9 @@ Port names are exactly the strings used in `from.port` / `to.port`.
 - A `pat` input applies `{steps, vel, gateLen, len}` onto this STEP
   immediately (same-tick pat deliveries apply before that tick's clk-driven
   step advance). The **SNAPSHOT** button emits this STEP's current params as
-  a `pat` signal on its `pat` output.
+  a `pat` signal on its `pat` output. The pat jacks and SNAPSHOT button only
+  render while a PATTRIG module is in the patch (or a pat cable already
+  touches this STEP); the ports always exist for routing purposes.
 - Advances one step per `clk` tick; emits the step's note if `on`.
 - **params:**
   | key       | type   | default | notes |
@@ -115,20 +119,22 @@ Port names are exactly the strings used in `from.port` / `to.port`.
 
 ### PATTRIG  (pattern trigger — a note-mapped pattern bank)
 - **inputs:** `note` (note), `pat` (pat) · **outputs:** `pat` (pat)
-- A bank of `{note, pat}` rows, assigned sequentially like a drum mapping.
+- A bank of `{note, pat, type}` rows, assigned sequentially like a drum
+  mapping.
   On `pat` (e.g. a STEP's SNAPSHOT): ignored if `locked`; otherwise the pat
   is stored at the next chromatic slot — C0 (MIDI 24) when the bank is
   empty, else one past the highest used note. Past G8 (127) the bank is
   full and pats are ignored. Nothing is emitted on capture.
 - On `note`: if the pitch has a row, re-emits the stored `pat` (always
-  allowed, even when `locked`); unknown pitches are ignored.
+  allowed, even when `locked`); unknown pitches are ignored. Clicking a row
+  in the panel sends the same emit directly.
 - Clearing the highest row frees its slot for the next capture (undo); a
   cleared middle slot stays empty, so learned notes never shift.
 - **params:**
   | key      | type    | default | notes |
   |----------|---------|---------|-------|
   | `locked` | boolean | `false` | When true, incoming pats are ignored (no new captures); learned notes still recall. |
-  | `table`  | array   | `[]`    | `[{ note: 24-127, pat: {...} }, ...]`, capture order. `pat` is a target module's `params` object (see the pat signal type above). |
+  | `table`  | array   | `[]`    | `[{ note: 24-127, pat: {...}, type: "STEP" }, ...]`, capture order. `pat` is a target module's `params` object and `type` the module type it came from (absent on legacy rows — treated as `"STEP"`; see the pat signal type above). |
 
 ### EUCLID  (euclidean rhythm)
 - **inputs:** `clk` (clock), `pitch` (note) · **outputs:** `note` (note)
