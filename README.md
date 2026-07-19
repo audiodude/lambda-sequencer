@@ -67,6 +67,30 @@ The built-in demo song (what boots with no autosave) is swapped with
 `tools/set-default-patch.sh <patch.json> [index.html]` — feed it a patch
 exported with SAVE.
 
+## Pattern recall (PATTRIG)
+
+**PATTRIG** is a pattern bank mapped like a drum kit — snapshot STEP
+patterns into sequential note slots (C0, C#0, D0…), then recall them live
+by pitch.
+
+1. Add a PATTRIG — STEPs only show their `pat` jacks and **SNAPSHOT** button
+   while one is on the canvas, so patches without pattern recall stay
+   uncluttered.
+2. Build a pattern on an "editor" STEP, patch its `pat` output into the
+   PATTRIG's `pat` input, and click the STEP's **SNAPSHOT** button — the
+   pattern lands on the next free slot (first C0, then C#0, and so on; the
+   **NEXT** readout shows where the next one goes). Repeat for each pattern
+   you want in the bank. Each row lists its note and the module type it was
+   captured from.
+3. Patch the PATTRIG's `pat` output into a "player" STEP's `pat` input, and
+   any note source into the PATTRIG's `note` input — sending a learned note
+   now reconfigures that STEP's pattern live (unknown notes are ignored).
+   Clicking a row sends its pattern directly, no note needed.
+4. **LOCK** stops further captures (learned notes still recall). Each row's
+   **×** clears a slot — clearing the newest row frees it for re-capture
+   (undo), while a cleared middle slot stays empty so learned notes never
+   shift.
+
 ## Device remapping
 
 Patches reference MIDI devices by **name** so they stay portable across machines (WebMIDI port ids differ per machine/browser). On load, λ-SEQ resolves each name to a live port. If a name can't be found, it prompts you to map it to one of your devices — pick a target once and every module that used that name is remapped.
