@@ -354,12 +354,15 @@
       .module .help-panel {
         position: absolute;
         top: calc(100% - 10px);
-        left: 16px;
-        right: 16px;
+        /* centered and allowed to be wider than the module, so narrow
+           modules (PATTRIG, STEP…) get a readable text column */
+        left: 50%;
+        transform: translateX(-50%);
+        width: max(calc(100% - 32px), 340px);
         z-index: -1;
         background: var(--bg2);
         border: 1px solid var(--line);
-        border-radius: 0 0 6px 6px;
+        border-radius: 6px;
         padding: 18px 12px 10px;
         color: var(--dim);
         font-size: 11px;
@@ -1291,7 +1294,7 @@
       <div :class="'view-' + view">
         <!-- TOPBAR -->
         <div id="topbar">
-          <div class="logo" @click="setView('rack')" title="Rack view">λ-SEQ <span class="commit-hash">8d11188</span></div>
+          <div class="logo" @click="setView('rack')" title="Rack view">λ-SEQ <span class="commit-hash">1c95ac4</span></div>
           <div class="sep"></div>
           <button
             :class="['play', { on: transport.playing }]"
@@ -1665,7 +1668,11 @@
         <div class="body">
           <slot></slot>
         </div>
-        <div v-if="helpOpen && $slots.help" class="help-panel">
+        <div
+          v-if="helpOpen && $slots.help"
+          class="help-panel"
+          @click="raiseHelp"
+        >
           <slot name="help"></slot>
         </div>
       </div>
@@ -3621,6 +3628,13 @@
           return { helpOpen: false };
         },
         methods: {
+          // clicking an open help panel brings its module above neighbors
+          // (the panel is z-index:-1 relative to the canvas, so a busy rack
+          // can bury it — raising the whole module keeps panel + module
+          // together)
+          raiseHelp() {
+            this.$el.style.zIndex = ++ModuleFrame._topZ;
+          },
           portDisabled(dir, name) {
             return !!(
               this.module.disabled && this.module.disabled[dir + ':' + name]
@@ -3652,6 +3666,10 @@
           },
         },
       });
+
+      // shared bring-to-front counter for raiseHelp (view state only —
+      // never persisted; the stacking resets to DOM order on reload)
+      ModuleFrame._topZ = 1;
 
       // =============================================================
       // PER-TYPE MODULE COMPONENTS
