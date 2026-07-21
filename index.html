@@ -59,6 +59,7 @@
         --scale: #3fd9aa;
         --bad: #ff5050;
         --good: #5fff9c;
+        --pat: #ff5ec4;
       }
       * {
         box-sizing: border-box;
@@ -353,12 +354,15 @@
       .module .help-panel {
         position: absolute;
         top: calc(100% - 10px);
-        left: 16px;
-        right: 16px;
+        /* centered and allowed to be wider than the module, so narrow
+           modules (PATTRIG, STEP…) get a readable text column */
+        left: 50%;
+        transform: translateX(-50%);
+        width: max(calc(100% - 32px), 340px);
         z-index: -1;
         background: var(--bg2);
         border: 1px solid var(--line);
-        border-radius: 0 0 6px 6px;
+        border-radius: 6px;
         padding: 18px 12px 10px;
         color: var(--dim);
         font-size: 11px;
@@ -410,6 +414,12 @@
       .module .port.disabled .lbl {
         text-decoration: line-through;
       }
+      /* dead = the far end of this port's cable is muted; keep the jack's
+         normal look (only its OWN dashed/struck style means "click me to
+         unmute") so toggling either end always gives visible feedback */
+      .module .port.dead {
+        opacity: 0.35;
+      }
       .module .jack {
         position: relative;
         width: 14px;
@@ -448,6 +458,9 @@
       }
       .module .jack.scale {
         color: var(--scale);
+      }
+      .module .jack.pat {
+        color: var(--pat);
       }
       .module .body {
         padding: 8px;
@@ -834,6 +847,94 @@
       }
       .module.STEP .note-edit input:focus {
         border-color: var(--note);
+      }
+
+      .module.PATTRIG {
+        min-width: 220px;
+      }
+      .module.PATTRIG .scaledisp {
+        color: var(--pat);
+      }
+      .module.PATTRIG .lock-btn,
+      .module.PATTRIG .clear-all-btn {
+        flex: 1;
+        background: var(--bg2);
+        color: var(--text);
+        border: 1px solid var(--line);
+        border-radius: 4px;
+        padding: 6px 9px;
+        font: 600 11px/1 ui-monospace, monospace;
+        letter-spacing: 0.08em;
+        cursor: pointer;
+        transition:
+          background 0.1s,
+          border-color 0.1s,
+          color 0.1s;
+      }
+      .module.PATTRIG .lock-btn:hover,
+      .module.PATTRIG .clear-all-btn:hover {
+        background: var(--panel-hi);
+        border-color: var(--accent);
+      }
+      .module.PATTRIG .lock-btn.on {
+        background: var(--panel-hi);
+        color: var(--pat);
+        box-shadow: inset 0 0 0 1px var(--pat);
+      }
+      .module.PATTRIG .clear-all-btn:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+      }
+      .module.PATTRIG .pat-table {
+        max-height: 160px;
+        overflow-y: auto;
+        border: 1px solid var(--line);
+        border-radius: 4px;
+        margin-top: 4px;
+      }
+      .module.PATTRIG .table-row {
+        display: flex;
+        align-items: center;
+        padding: 4px 8px;
+        border-bottom: 1px solid var(--line);
+        font-size: 12px;
+        transition: background 0.15s;
+        cursor: pointer;
+      }
+      .module.PATTRIG .table-row:hover {
+        background: var(--panel-hi);
+      }
+      .module.PATTRIG .table-row .pat-src {
+        flex: 1;
+        text-align: right;
+        margin-right: 6px;
+        color: var(--dim);
+        font-size: 10px;
+        letter-spacing: 0.05em;
+      }
+      .module.PATTRIG .table-row:last-child {
+        border-bottom: none;
+      }
+      .module.PATTRIG .table-row.flash {
+        background: var(--panel-hi);
+      }
+      .module.PATTRIG .table-row .x {
+        background: transparent;
+        color: var(--dim);
+        border: 0;
+        cursor: pointer;
+        font-size: 13px;
+        line-height: 1;
+        padding: 0 2px;
+      }
+      .module.PATTRIG .table-row .x:hover {
+        color: var(--bad);
+      }
+      .module.PATTRIG .pat-table-empty {
+        padding: 10px 8px;
+        color: var(--dim);
+        font-size: 11px;
+        text-align: center;
       }
 
       .module.EUCLID .ring-wrap {
@@ -1245,7 +1346,7 @@
       <div :class="'view-' + view">
         <!-- TOPBAR -->
         <div id="topbar">
-          <div class="logo" @click="setView('rack')" title="Rack view">λ-SEQ <span class="commit-hash">3ace441</span></div>
+<div class="logo" @click="setView('rack')" title="Rack view">λ-SEQ <span class="commit-hash">8b6f75a</span></div>
           <div class="sep"></div>
           <button
             :class="['play', { on: transport.playing }]"
@@ -1592,7 +1693,7 @@
             <div
               v-for="p in inputs"
               :key="p.name"
-              :class="['port', { disabled: portDisabled('in', p.name) || inDead(p.name) }]"
+              :class="['port', { disabled: portDisabled('in', p.name), dead: inDead(p.name) }]"
               @pointerdown="$emit('port-pointerdown', { port: p.name, dir: 'in',  type: p.type, event: $event })"
             >
               <div
@@ -1606,7 +1707,7 @@
             <div
               v-for="p in outputs"
               :key="p.name"
-              :class="['port', { disabled: portDisabled('out', p.name) || outDead(p.name) }]"
+              :class="['port', { disabled: portDisabled('out', p.name), dead: outDead(p.name) }]"
               @pointerdown="$emit('port-pointerdown', { port: p.name, dir: 'out', type: p.type, event: $event })"
             >
               <div class="lbl">{{ p.name }}</div>
@@ -1620,7 +1721,11 @@
         <div class="body">
           <slot></slot>
         </div>
-        <div v-if="helpOpen && $slots.help" class="help-panel">
+        <div
+          v-if="helpOpen && $slots.help"
+          class="help-panel"
+          @click="raiseHelp"
+        >
           <slot name="help"></slot>
         </div>
       </div>
@@ -1642,14 +1747,14 @@
           <button
             type="button"
             :class="{ on: modeSel === 'internal' }"
-            @click="modeSel = 'internal'; onModeChange()"
+            @click="setMode('internal')"
           >
             BPM
           </button>
           <button
             type="button"
             :class="{ on: modeSel === 'ext' }"
-            @click="modeSel = 'ext'; onModeChange()"
+            @click="setMode('ext')"
           >
             EXT
           </button>
@@ -1697,8 +1802,8 @@
       <module-frame
         :module="module"
         title="STEP"
-        :inputs="[{name:'clk',type:'clock'}]"
-        :outputs="[{name:'note',type:'note'}]"
+        :inputs="frameInputs"
+        :outputs="frameOutputs"
         @head-pointerdown="$emit('head-pointerdown', $event)"
         @port-pointerdown="$emit('port-pointerdown', $event)"
         @port-dblclick="$emit('port-dblclick', $event)"
@@ -1799,6 +1904,14 @@
           >
             »
           </button>
+          <button
+            v-if="patVisible"
+            class="x2-btn"
+            @click="snapshotPat"
+            title="Emit this pattern as a pat signal (e.g. into a PATTRIG)"
+          >
+            SNAPSHOT
+          </button>
         </div>
         <template #help>
           Step sequencer driven by <b>clk</b>. Click a cell to toggle it, then
@@ -1815,6 +1928,73 @@
           last active step marks where it ends. <b>×2</b> doubles the length and
           duplicates the current pattern into the new half. <b>«</b> / <b>»</b>
           rotate the pattern one step left / right.
+        </template>
+      </module-frame>
+    </template>
+
+    <template id="tmpl-pattrig">
+      <module-frame
+        :module="module"
+        title="PATTRIG"
+        :inputs="[{name:'note',type:'note'},{name:'pat',type:'pat'}]"
+        :outputs="[{name:'pat',type:'pat'}]"
+        @head-pointerdown="$emit('head-pointerdown', $event)"
+        @port-pointerdown="$emit('port-pointerdown', $event)"
+        @port-dblclick="$emit('port-dblclick', $event)"
+        @remove="$emit('remove')"
+        @duplicate="$emit('duplicate')"
+      >
+        <div class="scaledisp">NEXT: {{ nextLabel }}</div>
+        <div class="row">
+          <button
+            type="button"
+            class="lock-btn"
+            :class="{ on: module.params.locked }"
+            @click="module.params.locked = !module.params.locked; $emit('change')"
+          >
+            LOCK
+          </button>
+          <button
+            type="button"
+            class="clear-all-btn"
+            :disabled="!module.params.table.length"
+            @click="clearAll"
+          >
+            CLEAR ALL
+          </button>
+        </div>
+        <div class="pat-table">
+          <div
+            v-for="row in module.params.table"
+            :key="row.note"
+            class="table-row"
+            :class="{ flash: module.state.flashNote === row.note }"
+            title="Send this pattern"
+            @click="recallRow(row)"
+          >
+            <span class="note-name">{{ noteName(row.note) }}</span>
+            <span class="pat-src">{{ row.type || 'STEP' }}</span>
+            <button type="button" class="x" @click.stop="clearRow(row.note)">×</button>
+          </div>
+          <div v-if="!module.params.table.length" class="pat-table-empty">
+            no patterns learned
+          </div>
+        </div>
+        <template #help>
+          A pattern bank, mapped like a drum kit. Each <b>pat</b> received
+          (e.g. from a STEP's <b>SNAPSHOT</b> button) lands on the next
+          chromatic slot from <b>C0</b> up — first C0, then C#0, D0… —
+          shown by <b>NEXT</b>. Send a <b>note</b> to re-emit the pattern
+          stored at that pitch (unknown pitches are ignored), or click a row
+          to send it directly. Each row shows the module type it was captured
+          from. STEPs only show their pat jacks and SNAPSHOT button while a
+          PATTRIG is in the patch.<br />
+          <b>LOCK</b> stops new captures (learned notes still recall).
+          <b>CLEAR ALL</b> empties the bank; each row's <b>×</b> clears one
+          slot. Clearing the newest row frees its slot (undo); a cleared
+          middle slot stays empty so learned notes never shift.<br />
+          Patch the <b>pat</b> output into another STEP's <b>pat</b> input to
+          switch its pattern live by note.
         </template>
       </module-frame>
     </template>
@@ -2424,12 +2604,14 @@
         clock: '#ffffff',
         note: '#ffd84a',
         scale: '#3fd9aa',
+        pat: '#ff5ec4',
       };
       const CLOCK_BPMS = [60, 80, 90, 100, 110, 120, 128, 140, 160, 180];
       const PALETTE = [
         'CLOCK',
         'DIV',
         'STEP',
+        'PATTRIG',
         'EUCLID',
         'TRANSPOSE',
         'QUANT',
@@ -2788,6 +2970,28 @@
         return notes.filter((n) => n >= 0 && n <= 127);
       }
 
+      // next PATTRIG capture slot: chromatic from C0 (24), one past the
+      // highest used row; > 127 means the bank is full
+      function pattrigNextSlot(table) {
+        return table.length
+          ? Math.max(...table.map((r) => r.note)) + 1
+          : 24;
+      }
+      function withPat(def) {
+        return {
+          ...def,
+          inputs: [...def.inputs, { name: 'pat', type: 'pat' }],
+          outputs: [...def.outputs, { name: 'pat', type: 'pat' }],
+          onInput(ctx, m, port, ev) {
+            if (port === 'pat' && ev.kind === 'pat') {
+              def.applyPat(m, ev.params);
+              return;
+            }
+            return def.onInput(ctx, m, port, ev);
+          },
+        };
+      }
+
       // =============================================================
       // MODULE TYPE METADATA — defaults, ports, onInput per type
       // =============================================================
@@ -2809,7 +3013,7 @@
           }),
           onInput() {},
         },
-        STEP: {
+        STEP: withPat({
           inputs: [{ name: 'clk', type: 'clock' }],
           outputs: [{ name: 'note', type: 'note' }],
           defaults: () => ({
@@ -2866,6 +3070,46 @@
                 gateLen: m.params.gateLen * stepDur,
               });
             }
+          },
+          getPat: (m) => JSON.parse(JSON.stringify(m.params)),
+          applyPat: (m, pat) => Object.assign(m.params, JSON.parse(JSON.stringify(pat))),
+        }),
+        PATTRIG: {
+          inputs: [
+            { name: 'note', type: 'note' },
+            { name: 'pat', type: 'pat' },
+          ],
+          outputs: [{ name: 'pat', type: 'pat' }],
+          defaults: () => ({
+            locked: false,
+            table: [],
+          }),
+          onInput(ctx, m, port, ev) {
+            const flash = (pitch) => {
+              m.state.flashNote = pitch;
+              clearTimeout(m.state._flashT);
+              m.state._flashT = setTimeout(() => {
+                m.state.flashNote = null;
+              }, 200);
+            };
+            if (port === 'pat' && ev.kind === 'pat') {
+              if (m.params.locked) return;
+              const slot = pattrigNextSlot(m.params.table);
+              if (slot > 127) return;
+              m.params.table.push({ note: slot, pat: ev.params, type: ev.type });
+              flash(slot);
+              return;
+            }
+            if (port !== 'note' || ev.kind !== 'note') return;
+            const row = m.params.table.find((r) => r.note === ev.pitch);
+            if (!row) return;
+            ctx.emit(m, 'pat', {
+              kind: 'pat',
+              time: ev.time,
+              type: row.type,
+              params: row.pat,
+            });
+            flash(ev.pitch);
           },
         },
         EUCLID: {
@@ -3578,6 +3822,13 @@
           return { helpOpen: false };
         },
         methods: {
+          // clicking an open help panel brings its module above neighbors
+          // (the panel is z-index:-1 relative to the canvas, so a busy rack
+          // can bury it — raising the whole module keeps panel + module
+          // together)
+          raiseHelp() {
+            this.$el.style.zIndex = ++ModuleFrame._topZ;
+          },
           portDisabled(dir, name) {
             return !!(
               this.module.disabled && this.module.disabled[dir + ':' + name]
@@ -3610,6 +3861,10 @@
         },
       });
 
+      // shared bring-to-front counter for raiseHelp (view state only —
+      // never persisted; the stacking resets to DOM order on reload)
+      ModuleFrame._topZ = 1;
+
       // =============================================================
       // PER-TYPE MODULE COMPONENTS
       // =============================================================
@@ -3628,6 +3883,19 @@
         'change',
         'reroute',
       ];
+
+      const patSnapshotMixin = {
+        methods: {
+          snapshotPat() {
+            this.$root.emit(this.module, 'pat', {
+              kind: 'pat',
+              time: null,
+              type: this.module.type,
+              params: TYPES[this.module.type].getPat(this.module),
+            });
+          },
+        },
+      };
 
       const ModuleClock = defineComponent({
         template: '#tmpl-clock',
@@ -3673,7 +3941,11 @@
             this.$emit('change');
             this.$root.applyClockParams(this.module);
           },
-          onModeChange() {
+          // no-op when the mode didn't change — a re-click on the active
+          // segment must not stop the transport
+          setMode(v) {
+            if (this.modeSel === v) return;
+            this.modeSel = v;
             this.$root.stopTransport();
             this.onSrcChange();
           },
@@ -3685,6 +3957,7 @@
         components: { ModuleFrame },
         props: baseProps,
         emits: baseEmits,
+        mixins: [patSnapshotMixin],
         data() {
           return {
             editIndex: -1,
@@ -3698,6 +3971,31 @@
           };
         },
         computed: {
+          // pat is an opt-in workflow: STEP shows its pat jacks + SNAPSHOT only
+          // while a PATTRIG is in the patch — or while a pat cable still
+          // touches this module, so removing the last PATTRIG can't strand a
+          // cable on jacks that no longer render
+          patVisible() {
+            const id = this.module.id;
+            return (
+              this.$root.modules.some((m) => m.type === 'PATTRIG') ||
+              this.$root.cables.some(
+                (c) =>
+                  (c.to.mid === id && c.to.port === 'pat') ||
+                  (c.from.mid === id && c.from.port === 'pat'),
+              )
+            );
+          },
+          frameInputs() {
+            const io = [{ name: 'clk', type: 'clock' }];
+            if (this.patVisible) io.push({ name: 'pat', type: 'pat' });
+            return io;
+          },
+          frameOutputs() {
+            const io = [{ name: 'note', type: 'note' }];
+            if (this.patVisible) io.push({ name: 'pat', type: 'pat' });
+            return io;
+          },
           visibleCount() {
             return Math.max(16, Math.ceil(this.module.params.len / 16) * 16);
           },
@@ -3885,6 +4183,46 @@
             if (this.editIndex < 0) return;
             this.module.params.steps[this.editIndex].pitch = this.editOrig;
             this.editIndex = -1;
+            this.$emit('change');
+          },
+        },
+      });
+
+      const ModulePattrig = defineComponent({
+        template: '#tmpl-pattrig',
+        components: { ModuleFrame },
+        props: baseProps,
+        emits: baseEmits,
+        computed: {
+          nextLabel() {
+            const slot = pattrigNextSlot(this.module.params.table);
+            return slot > 127 ? 'FULL' : midiToNoteName(slot);
+          },
+        },
+        methods: {
+          noteName: midiToNoteName,
+          recallRow(row) {
+            this.$root.emit(this.module, 'pat', {
+              kind: 'pat',
+              time: null,
+              type: row.type,
+              params: row.pat,
+            });
+            const s = this.module.state;
+            s.flashNote = row.note;
+            clearTimeout(s._flashT);
+            s._flashT = setTimeout(() => {
+              s.flashNote = null;
+            }, 200);
+          },
+          clearAll() {
+            this.module.params.table = [];
+            this.$emit('change');
+          },
+          clearRow(note) {
+            this.module.params.table = this.module.params.table.filter(
+              (r) => r.note !== note,
+            );
             this.$emit('change');
           },
         },
@@ -4190,6 +4528,7 @@
       const COMPONENT_FOR = {
         CLOCK: ModuleClock,
         STEP: ModuleStep,
+        PATTRIG: ModulePattrig,
         EUCLID: ModuleEuclid,
         DIV: ModuleDiv,
         TRANSPOSE: ModuleTranspose,
@@ -4639,7 +4978,7 @@
               // time-less events (scale re-broadcasts) sort first: they are
               // immediate state, not scheduled signals
               const tOf = (e) => (e.event.time == null ? -Infinity : e.event.time);
-              const KIND_PRI = { scale: 0, note: 1, clock: 2 };
+              const KIND_PRI = { scale: 0, pat: 1, note: 2, clock: 3 };
               const before = (a, b) => {
                 const pa = KIND_PRI[a.event.kind] ?? 0;
                 const pb = KIND_PRI[b.event.kind] ?? 0;
