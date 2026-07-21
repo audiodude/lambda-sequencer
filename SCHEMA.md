@@ -191,6 +191,8 @@ Port names are exactly the strings used in `from.port` / `to.port`.
   |-------------|--------|--------------------|-------|
   | `patchName` | string | `"Electric Piano"` | Factory patch name (64 available). Unknown names fall back to the default. |
   | `volume`    | number | `0.8`              | Output gain 0–1, applied after the engine's own master volume. |
+  | `tweaked`   | bool   | `false`            | `false`: module follows the patch (`tweaks` is re-seeded from the loaded patch's values). `true`: `tweaks` overrides the patch. Cleared on patch switch and RESET. |
+  | `tweaks`    | object | patch values       | Sound-shaping overrides: `attack`/`decay`/`release` (seconds, 0–2), `sustain` (0–1), `cutoff` (Hz, 0–8000), `resonance` (0.4–40). Applied live; clamped to engine ranges. |
 
 Up to **4 VIKTOR** modules may coexist — each is an independent engine
 instance (own patch + volume) on one shared AudioContext, summed into a

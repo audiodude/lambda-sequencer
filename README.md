@@ -51,8 +51,11 @@ synth engine (MIT), so patches can make sound with no MIDI device at all. Add a
 of them, each with its own patch and volume (they share one output limiter).
 The synth page stacks a panel per module; **OPEN** on a rack module jumps to
 its panel. The top bar's
-**RACK | BOTH | VIKTOR** switcher shows the rack, the synth page (64 factory
-patches + volume), or both side by side.
+**RACK | BOTH | VIKTOR** switcher shows the rack, the synth page, or both side
+by side. Each panel offers the 64 factory patches (alphabetical), volume, and
+live sound-shaping knobs — amp ADSR plus filter cutoff/resonance — that
+tweak the loaded patch in place; **RESET** returns to the patch's own sound,
+and switching patches drops the tweaks. Tweaks persist with the saved patch.
 
 Everything runs offline inside the single HTML file — the engine is inlined and
 the reverb impulse is synthesized at load, so no network is ever touched. Audio

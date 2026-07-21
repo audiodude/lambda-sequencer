@@ -966,7 +966,8 @@
         color: var(--dim);
       }
       #viktor-pane .viktor-panel {
-        max-width: 560px;
+        /* 640 seats all 7 sound knobs on one row (7×64 + 6×14 gaps + padding) */
+        max-width: 640px;
         margin: 0 auto;
         padding: 32px 24px;
         display: flex;
@@ -1003,10 +1004,6 @@
         flex: 1;
         min-width: 0;
       }
-      #viktor-pane input[type='range'] {
-        flex: 1;
-        accent-color: var(--accent);
-      }
       #viktor-pane button,
       #viktor-pane select {
         background: var(--panel);
@@ -1023,10 +1020,65 @@
       #viktor-pane .viktor-note {
         color: var(--dim);
       }
-      #viktor-pane .viktor-vol-pct {
+      #viktor-pane .knob-row {
+        display: flex;
+        gap: 14px;
+        flex-wrap: wrap; /* narrow BOTH-view split: wrap instead of overflow */
+      }
+      #viktor-pane .knob-vol {
+        margin-left: auto;
+      }
+      #viktor-pane .rknob {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        width: 64px;
+        cursor: ns-resize;
+        user-select: none;
+        touch-action: none;
+        border-radius: 4px;
+      }
+      #viktor-pane .rknob:focus-visible {
+        outline: 1px solid var(--accent);
+      }
+      #viktor-pane .rknob .k-track {
+        fill: none;
+        stroke: var(--line);
+        stroke-width: 3;
+        stroke-linecap: round;
+      }
+      #viktor-pane .rknob .k-fill {
+        fill: none;
+        stroke: var(--accent);
+        stroke-width: 3;
+        stroke-linecap: round;
+      }
+      #viktor-pane .rknob .k-ptr {
+        stroke: var(--text);
+        stroke-width: 2;
+        stroke-linecap: round;
+      }
+      #viktor-pane .rknob .k-label {
+        margin-top: 2px;
+        font-size: 10px;
+        letter-spacing: 0.06em;
         color: var(--dim);
-        min-width: 4ch;
-        text-align: right;
+      }
+      #viktor-pane .rknob .k-val {
+        font-size: 11px;
+        color: var(--text);
+      }
+      #viktor-pane .viktor-sect {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-top: 8px;
+        color: var(--accent);
+        letter-spacing: 0.08em;
+      }
+      #viktor-pane .viktor-reset:disabled {
+        opacity: 0.4;
+        cursor: default;
       }
 
       #statusline {
@@ -1193,7 +1245,7 @@
       <div :class="'view-' + view">
         <!-- TOPBAR -->
         <div id="topbar">
-          <div class="logo" @click="setView('rack')" title="Rack view">λ-SEQ <span class="commit-hash">9536f93</span></div>
+          <div class="logo" @click="setView('rack')" title="Rack view">λ-SEQ <span class="commit-hash">3ace441</span></div>
           <div class="sep"></div>
           <button
             :class="['play', { on: transport.playing }]"
@@ -1292,6 +1344,7 @@
           :error="viktorError"
           @add="addAtCenter('VIKTOR')"
           @change="viktorParamsChanged"
+          @reset="viktorResetTweaks"
         ></viktor-panel>
 
         <!-- PALETTE -->
@@ -2168,6 +2221,38 @@
       </module-frame>
     </template>
 
+    <template id="tmpl-rotary-knob">
+      <div
+        class="rknob"
+        tabindex="0"
+        role="slider"
+        :aria-label="label"
+        :aria-valuemin="min"
+        :aria-valuemax="max"
+        :aria-valuenow="modelValue"
+        :aria-valuetext="display"
+        @pointerdown="down"
+        @pointermove="move"
+        @pointerup="up"
+        @pointercancel="up"
+        @keydown="key"
+      >
+        <svg viewBox="0 0 40 40" width="40" height="40" aria-hidden="true">
+          <path class="k-track" :d="arc(135)" />
+          <path class="k-fill" :d="arc(angle)" />
+          <line
+            class="k-ptr"
+            :x1="pt(angle, 5)[0]"
+            :y1="pt(angle, 5)[1]"
+            :x2="pt(angle, 13)[0]"
+            :y2="pt(angle, 13)[1]"
+          />
+        </svg>
+        <span class="k-label">{{ label }}</span>
+        <span class="k-val">{{ display }}</span>
+      </div>
+    </template>
+
     <template id="tmpl-viktor-panel">
       <div id="viktor-pane">
         <div v-if="error" class="viktor-empty">
@@ -2190,25 +2275,87 @@
             <div class="viktor-patch-big">{{ m.params.patchName }}</div>
             <div class="row">
               <button @click="step(m, -1)">‹ PREV</button>
-              <select v-model="m.params.patchName" @change="$emit('change')">
+              <select v-model="m.params.patchName" @change="patchPicked(m)">
                 <option v-for="n in patchNames" :key="n" :value="n">{{ n }}</option>
               </select>
               <button @click="step(m, 1)">NEXT ›</button>
             </div>
-            <div class="row">
-              <label>VOLUME</label>
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.01"
-                v-model.number="m.params.volume"
-                @input="$emit('change')"
-              />
-              <span class="viktor-vol-pct">{{ Math.round(m.params.volume * 100) }}%</span>
+            <div class="viktor-sect">
+              SOUND
+              <button class="viktor-reset" :disabled="!m.params.tweaked" @click="$emit('reset', m)">
+                RESET
+              </button>
+            </div>
+            <div class="knob-row">
+              <rotary-knob
+                label="ATTACK"
+                :model-value="m.params.tweaks.attack"
+                :min="0"
+                :max="2"
+                :step="0.01"
+                :display="m.params.tweaks.attack.toFixed(2) + 's'"
+                @update:model-value="setTweak(m, 'attack', $event)"
+              ></rotary-knob>
+              <rotary-knob
+                label="DECAY"
+                :model-value="m.params.tweaks.decay"
+                :min="0.002"
+                :max="2"
+                :step="0.01"
+                :display="m.params.tweaks.decay.toFixed(2) + 's'"
+                @update:model-value="setTweak(m, 'decay', $event)"
+              ></rotary-knob>
+              <rotary-knob
+                label="SUSTAIN"
+                :model-value="m.params.tweaks.sustain"
+                :min="0"
+                :max="1"
+                :step="0.01"
+                :display="Math.round(m.params.tweaks.sustain * 100) + '%'"
+                @update:model-value="setTweak(m, 'sustain', $event)"
+              ></rotary-knob>
+              <rotary-knob
+                label="RELEASE"
+                :model-value="m.params.tweaks.release"
+                :min="0"
+                :max="2"
+                :step="0.01"
+                :display="m.params.tweaks.release.toFixed(2) + 's'"
+                @update:model-value="setTweak(m, 'release', $event)"
+              ></rotary-knob>
+              <rotary-knob
+                label="CUTOFF"
+                :model-value="cutoffPos(m)"
+                :min="0"
+                :max="1"
+                :step="0.001"
+                :display="Math.round(m.params.tweaks.cutoff) + ' Hz'"
+                @update:model-value="setCutoff(m, $event)"
+              ></rotary-knob>
+              <rotary-knob
+                label="RES"
+                :model-value="m.params.tweaks.resonance"
+                :min="0.4"
+                :max="40"
+                :step="0.1"
+                :display="m.params.tweaks.resonance.toFixed(1)"
+                @update:model-value="setTweak(m, 'resonance', $event)"
+              ></rotary-knob>
+              <rotary-knob
+                class="knob-vol"
+                label="VOLUME"
+                :model-value="m.params.volume"
+                :min="0"
+                :max="1"
+                :step="0.01"
+                :display="Math.round(m.params.volume * 100) + '%'"
+                @update:model-value="setVolume(m, $event)"
+              ></rotary-knob>
             </div>
             <p class="viktor-note">
-              64 factory patches. Sound-shaping knobs land in a later phase.
+              64 factory patches. Knobs tweak the loaded patch live (drag
+              vertically; shift = fine). RESET returns to the patch's own
+              sound. Switching patches drops tweaks.
             </p>
           </div>
         </div>
@@ -2409,7 +2556,11 @@
       }
 
       function viktorNames() {
-        return window.NV1 ? Object.keys(NV1.defaultPatches) : [];
+        return window.NV1
+          ? Object.keys(NV1.defaultPatches).sort((a, b) =>
+              a.localeCompare(b, undefined, { sensitivity: 'base' })
+            )
+          : [];
       }
 
       function viktorSetPatch(mid, name) {
@@ -2429,6 +2580,37 @@
         ig.cancelScheduledValues(0);
         ig.setTargetAtTime(0.01, v.ctx.currentTime, 0.005);
         ig.setTargetAtTime(1.0, v.ctx.currentTime + 0.05, 0.05);
+      }
+
+      // Sound-shaping tweaks (amp ADSR + filter cutoff/resonance) live in
+      // m.params.tweaks. `tweaked` picks the sync direction: false = the
+      // module follows the patch, so seed the UI from the engine's loaded
+      // values; true = the user has edited, so push params into the engine
+      // (clamped to the engine's own per-setting ranges). The engine's
+      // envelopesSettings/filterSettings accessors deep-clone on get and
+      // diff-apply on set, so read-modify-write is the intended protocol.
+      function viktorSyncTweaks(mid, params) {
+        const v = viktorRts.get(mid);
+        const t = params.tweaks;
+        if (!v || !t) return;
+        const inst = v.engine.instruments[0];
+        const env = inst.envelopesSettings;
+        const flt = inst.filterSettings;
+        const map = [
+          [env.primary.attack, 'attack'],
+          [env.primary.decay, 'decay'],
+          [env.primary.sustain, 'sustain'],
+          [env.primary.release, 'release'],
+          [flt.cutoff, 'cutoff'],
+          [flt.emphasis, 'resonance'],
+        ];
+        if (params.tweaked) {
+          for (const [s, k] of map) s.value = clamp(+t[k] || 0, s.range[0], s.range[1]);
+          inst.envelopesSettings = env;
+          inst.filterSettings = flt;
+        } else {
+          for (const [s, k] of map) t[k] = s.value;
+        }
       }
 
       // slider 1.0 → +5 dB makeup. Calibrated against program material
@@ -2896,6 +3078,17 @@
           defaults: () => ({
             patchName: VIKTOR_DEFAULT_PATCH_NAME,
             volume: 0.8,
+            // seeded with engine defaults; overwritten from the real patch on
+            // first load while `tweaked` is false (see viktorSyncTweaks)
+            tweaked: false,
+            tweaks: {
+              attack: 0.5,
+              decay: 0.5,
+              sustain: 0.5,
+              release: 0.1,
+              cutoff: 4000,
+              resonance: 2,
+            },
           }),
           onInput(ctx, m, port, ev) {
             if (port !== 'in' || ev.kind !== 'note') return;
@@ -2906,6 +3099,7 @@
             // idempotent re-asserts: cheap, and self-healing across init order
             viktorSetPatch(m.id, m.params.patchName);
             viktorSetVolume(m.id, m.params.volume);
+            viktorSyncTweaks(m.id, m.params);
             viktorNote(m.id, ev);
             m.state.activity = true;
             clearTimeout(m.state._actT);
@@ -3869,6 +4063,83 @@
         },
       });
 
+      // Rotary knob: 270° arc from 7 o'clock to 5 o'clock. Drag vertically
+      // (shift = fine), or focus + arrow keys. Emits values quantized to
+      // `step`; `display` is the parent's pre-formatted readout string.
+      const RotaryKnob = defineComponent({
+        template: '#tmpl-rotary-knob',
+        props: {
+          modelValue: { type: Number, default: 0 },
+          min: { type: Number, default: 0 },
+          max: { type: Number, default: 1 },
+          step: { type: Number, default: 0.01 },
+          label: { type: String, default: '' },
+          display: { type: String, default: '' },
+        },
+        emits: ['update:modelValue'],
+        data: () => ({ dragVal: null, lastY: 0 }),
+        computed: {
+          angle() {
+            const n = clamp(
+              (this.modelValue - this.min) / (this.max - this.min || 1),
+              0,
+              1,
+            );
+            return -135 + 270 * n;
+          },
+        },
+        methods: {
+          // degrees clockwise from 12 o'clock → point on radius r
+          pt(deg, r) {
+            const a = (deg * Math.PI) / 180;
+            return [20 + r * Math.sin(a), 20 - r * Math.cos(a)];
+          },
+          arc(toDeg) {
+            const R = 16;
+            const [x0, y0] = this.pt(-135, R);
+            const [x1, y1] = this.pt(toDeg, R);
+            const large = toDeg + 135 > 180 ? 1 : 0;
+            return `M ${x0} ${y0} A ${R} ${R} 0 ${large} 1 ${x1} ${y1}`;
+          },
+          emitVal(v) {
+            const q = Math.round((v - this.min) / this.step) * this.step + this.min;
+            this.$emit(
+              'update:modelValue',
+              clamp(+q.toFixed(6), this.min, this.max),
+            );
+          },
+          down(e) {
+            e.preventDefault();
+            e.currentTarget.setPointerCapture(e.pointerId);
+            e.currentTarget.focus();
+            this.dragVal = this.modelValue;
+            this.lastY = e.clientY;
+          },
+          move(e) {
+            if (this.dragVal == null) return;
+            // full range ≈ 160px of travel; shift slows 10×
+            const dv =
+              (((this.lastY - e.clientY) / 160) * (this.max - this.min)) *
+              (e.shiftKey ? 0.1 : 1);
+            this.lastY = e.clientY;
+            this.dragVal = clamp(this.dragVal + dv, this.min, this.max);
+            this.emitVal(this.dragVal);
+          },
+          up() {
+            this.dragVal = null;
+          },
+          key(e) {
+            const dir = { ArrowUp: 1, ArrowRight: 1, ArrowDown: -1, ArrowLeft: -1 }[
+              e.key
+            ];
+            if (!dir) return;
+            e.preventDefault();
+            const coarse = Math.max(this.step, (this.max - this.min) / 50);
+            this.emitVal(this.modelValue + dir * (e.shiftKey ? this.step : coarse));
+          },
+        },
+      });
+
       const ViktorPanel = defineComponent({
         template: '#tmpl-viktor-panel',
         props: {
@@ -3876,14 +4147,42 @@
           patchNames: { type: Array, default: () => [] },
           error: { type: Boolean, default: false },
         },
-        emits: ['add', 'change'],
+        emits: ['add', 'change', 'reset'],
+        components: { RotaryKnob },
         methods: {
+          setTweak(m, k, v) {
+            m.params.tweaks[k] = v;
+            this.tweak(m);
+          },
+          setVolume(m, v) {
+            m.params.volume = v;
+            this.$emit('change');
+          },
           step(m, d) {
             const names = this.patchNames;
             if (!names.length) return;
             const i = names.indexOf(m.params.patchName);
             m.params.patchName = names[(i + d + names.length) % names.length];
+            this.patchPicked(m);
+          },
+          // switching patches drops the user's tweaks — the new patch's own
+          // values re-seed the sliders (tweaked=false → engine→UI sync)
+          patchPicked(m) {
+            m.params.tweaked = false;
             this.$emit('change');
+          },
+          tweak(m) {
+            m.params.tweaked = true;
+            this.$emit('change');
+          },
+          // cutoff slider runs in sqrt domain so the musically busy low end
+          // isn't cramped into the first pixels of a 0–8 kHz linear ramp
+          cutoffPos(m) {
+            return Math.sqrt(clamp(m.params.tweaks.cutoff, 0, 8000) / 8000);
+          },
+          setCutoff(m, v) {
+            m.params.tweaks.cutoff = Math.round(8000 * v * v);
+            this.tweak(m);
           },
         },
       });
@@ -4065,6 +4364,7 @@
               if (viktorEnsure(m.id)) {
                 viktorSetPatch(m.id, m.params.patchName);
                 viktorSetVolume(m.id, m.params.volume);
+                viktorSyncTweaks(m.id, m.params);
               }
             }
           },
@@ -4075,6 +4375,15 @@
             this.applyViktorParams();
             this.viktorError = viktorFailed;
             this.save();
+          },
+
+          // RESET: back to the patch's own sound. The engine still holds the
+          // tweaked values, so force a patch reload before re-seeding.
+          viktorResetTweaks(m) {
+            m.params.tweaked = false;
+            const v = viktorRts.get(m.id);
+            if (v) v.loadedPatch = '';
+            this.viktorParamsChanged();
           },
 
           // ----- modules -----
