@@ -70,6 +70,16 @@ The built-in demo song (what boots with no autosave) is swapped with
 `tools/set-default-patch.sh <patch.json> [index.html]` — feed it a patch
 exported with SAVE.
 
+## Keyboard (PIANO)
+
+**PIANO** is a three-octave keyboard you can watch and play. Cable notes
+through it (`in` → `out`) and each note lights its key for its gate while a
+readout shows the last pitch and velocity; click a key, or drag across keys,
+to send that note to `out` right now — even with the transport stopped —
+using the module's **VEL** and a fixed **GATE** in seconds. **BASE** picks the
+lowest octave. Clicks are one-shot: the signal graph has no note-off, so
+holding the mouse doesn't sustain.
+
 ## Pattern recall (PATTRIG)
 
 **PATTRIG** is a pattern bank mapped like a drum kit — snapshot STEP

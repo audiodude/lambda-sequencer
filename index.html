@@ -849,6 +849,59 @@
         border-color: var(--note);
       }
 
+      .module.PIANO {
+        min-width: 400px;
+      }
+      .module.PIANO .scaledisp {
+        color: var(--note);
+      }
+      .module.PIANO .keys {
+        position: relative;
+        height: 72px;
+        margin-top: 4px;
+        touch-action: none;
+      }
+      .module.PIANO .key {
+        position: absolute;
+        top: 0;
+        box-sizing: border-box;
+        border: 1px solid var(--line);
+        cursor: pointer;
+        transition: background 0.06s;
+      }
+      .module.PIANO .key.white {
+        height: 100%;
+        background: var(--text);
+        border-radius: 0 0 3px 3px;
+      }
+      .module.PIANO .key.black {
+        height: 60%;
+        background: var(--bg);
+        border-radius: 0 0 2px 2px;
+        z-index: 1;
+      }
+      .module.PIANO .key.white:hover {
+        background: #fff;
+      }
+      .module.PIANO .key.black:hover {
+        background: var(--panel-hi);
+      }
+      .module.PIANO .key.lit,
+      .module.PIANO .key.lit:hover {
+        background: var(--note);
+        box-shadow: 0 0 8px var(--note);
+      }
+      .module.PIANO .key .oct {
+        position: absolute;
+        bottom: 3px;
+        left: 0;
+        right: 0;
+        text-align: center;
+        font-size: 9px;
+        color: var(--dim);
+        pointer-events: none;
+      }
+
       .module.PATTRIG {
         min-width: 220px;
       }
@@ -1346,7 +1399,7 @@
       <div :class="'view-' + view">
         <!-- TOPBAR -->
         <div id="topbar">
-<div class="logo" @click="setView('rack')" title="Rack view">λ-SEQ <span class="commit-hash">8b6f75a</span></div>
+<div class="logo" @click="setView('rack')" title="Rack view">λ-SEQ <span class="commit-hash">40ccff8</span></div>
           <div class="sep"></div>
           <button
             :class="['play', { on: transport.playing }]"
@@ -2149,6 +2202,70 @@
       </module-frame>
     </template>
 
+    <template id="tmpl-piano">
+      <module-frame
+        :module="module"
+        title="PIANO"
+        :inputs="[{name:'in',type:'note'}]"
+        :outputs="[{name:'out',type:'note'}]"
+        @head-pointerdown="$emit('head-pointerdown', $event)"
+        @port-pointerdown="$emit('port-pointerdown', $event)"
+        @port-dblclick="$emit('port-dblclick', $event)"
+        @remove="$emit('remove')"
+        @duplicate="$emit('duplicate')"
+      >
+        <div class="scaledisp">{{ lastLabel }}</div>
+        <div class="keys">
+          <div
+            v-for="k in keys"
+            :key="k.pitch"
+            :class="['key', k.black ? 'black' : 'white', { lit: module.state.lit && module.state.lit[k.pitch] }]"
+            :style="{ left: k.left + '%', width: k.width + '%' }"
+            :data-pitch="k.pitch"
+            :title="noteName(k.pitch)"
+            @pointerdown="pressStart(k.pitch, $event)"
+            @pointerenter="pressEnter(k.pitch)"
+          >
+            <span v-if="k.pitch % 12 === 0" class="oct">{{ noteName(k.pitch) }}</span>
+          </div>
+        </div>
+        <div class="row">
+          <label>BASE</label>
+          <num-knob
+            :min="-2"
+            :max="5"
+            v-model.number="module.params.base"
+            @change="$emit('change')"
+          ></num-knob>
+          <label>VEL</label>
+          <num-knob
+            :min="1"
+            :max="127"
+            v-model.number="module.params.vel"
+            @change="$emit('change')"
+          ></num-knob>
+          <label>GATE</label>
+          <num-knob
+            :min="0.05"
+            :max="4"
+            :step="0.05"
+            v-model.number="module.params.gate"
+            @change="$emit('change')"
+          ></num-knob>
+        </div>
+        <template #help>
+          A keyboard monitor. Notes arriving at <b>in</b> pass straight
+          through to <b>out</b> and light their key for the note's gate; the
+          readout shows the last note and velocity, including notes outside
+          the visible range.<br />
+          Click a key (or drag across keys) to send that note to <b>out</b>
+          right away, with <b>VEL</b> and a fixed <b>GATE</b> in seconds —
+          works with the transport stopped. <b>BASE</b> is the octave of the
+          lowest key (three octaves are shown).
+        </template>
+      </module-frame>
+    </template>
+
     <template id="tmpl-quant">
       <module-frame
         :module="module"
@@ -2617,6 +2734,7 @@
         'QUANT',
         'CHORD',
         'CHANCE',
+        'PIANO',
         'SCL',
         'MIDIOUT',
         'VIKTOR',
@@ -2992,6 +3110,45 @@
         };
       }
 
+      // PIANO key highlight. Refcounted per pitch so an early note-off from
+      // one overlapping note can't unlight a longer one; armed at the note's
+      // scheduled time (the scheduler runs ahead — same idea as viktorNote).
+      const PIANO_OCTAVES = 3;
+      const PIANO_BLACK = [1, 3, 6, 8, 10];
+      function pianoLight(m, ev) {
+        const s = m.state;
+        // assign, then re-read: `s.lit = {}` evaluates to the raw object, and
+        // m.state is reactive — mutating the raw copy never re-renders
+        if (!s.lit) s.lit = {};
+        if (!s._litT) s._litT = new Set();
+        const lit = s.lit;
+        const timers = s._litT;
+        const pitch = clamp(ev.pitch | 0, 0, 127);
+        const delay = Math.max(0, ((ev.time ?? nowSec()) - nowSec()) * 1000);
+        // floor so a 20ms gate still registers on screen
+        const hold = clamp(ev.gateLen || 0.1, 0.06, 4) * 1000;
+        const tOn = setTimeout(() => {
+          timers.delete(tOn);
+          lit[pitch] = (lit[pitch] || 0) + 1;
+        }, delay);
+        timers.add(tOn);
+        const tOff = setTimeout(() => {
+          timers.delete(tOff);
+          const n = (lit[pitch] || 1) - 1;
+          if (n > 0) lit[pitch] = n;
+          else delete lit[pitch];
+        }, delay + hold);
+        timers.add(tOff);
+      }
+      function pianoClear(m) {
+        const s = m.state;
+        if (s._litT) {
+          for (const t of s._litT) clearTimeout(t);
+          s._litT.clear();
+        }
+        s.lit = {};
+      }
+
       // =============================================================
       // MODULE TYPE METADATA — defaults, ports, onInput per type
       // =============================================================
@@ -3215,6 +3372,17 @@
               ...ev,
               pitch: clamp(ev.pitch + m.params.semis, 0, 127),
             });
+          },
+        },
+        PIANO: {
+          inputs: [{ name: 'in', type: 'note' }],
+          outputs: [{ name: 'out', type: 'note' }],
+          defaults: () => ({ base: 2, vel: 100, gate: 0.25 }),
+          onInput(ctx, m, port, ev) {
+            if (port !== 'in' || ev.kind !== 'note') return;
+            m.state.last = { pitch: ev.pitch, vel: ev.vel };
+            pianoLight(m, ev);
+            ctx.emit(m, 'out', ev);
           },
         },
         QUANT: {
@@ -4291,6 +4459,80 @@
         props: baseProps,
         emits: baseEmits,
       });
+      const ModulePiano = defineComponent({
+        template: '#tmpl-piano',
+        components: { ModuleFrame },
+        props: baseProps,
+        emits: baseEmits,
+        data() {
+          return { pressing: false };
+        },
+        computed: {
+          lastLabel() {
+            const l = this.module.state.last;
+            return l ? `${midiToNoteName(l.pitch)} · ${l.vel}` : '—';
+          },
+          // three octaves from BASE, laid out in percent: white keys tile the
+          // row, each black key straddles the boundary before the next white
+          keys() {
+            const low = (clamp(this.module.params.base | 0, -2, 5) + 2) * 12;
+            const n = PIANO_OCTAVES * 12;
+            const whiteW = 100 / (PIANO_OCTAVES * 7);
+            const blackW = whiteW * 0.6;
+            const out = [];
+            let wi = 0;
+            for (let p = low; p < low + n; p++) {
+              if (PIANO_BLACK.includes(p % 12)) {
+                out.push({ pitch: p, black: true, left: wi * whiteW - blackW / 2, width: blackW });
+              } else {
+                out.push({ pitch: p, black: false, left: wi * whiteW, width: whiteW });
+                wi++;
+              }
+            }
+            return out;
+          },
+        },
+        beforeUnmount() {
+          this.pressEnd();
+        },
+        methods: {
+          noteName: midiToNoteName,
+          play(pitch) {
+            const ev = {
+              kind: 'note',
+              time: nowSec(),
+              pitch,
+              vel: this.module.params.vel,
+              gateLen: this.module.params.gate,
+            };
+            this.module.state.last = { pitch, vel: ev.vel };
+            pianoLight(this.module, ev);
+            this.$root.emit(this.module, 'out', ev);
+          },
+          // press + drag-enter retriggers each key crossed (STEP's paint gesture)
+          pressStart(pitch, e) {
+            if (e.button != null && e.button !== 0) return;
+            e.preventDefault();
+            if (e.pointerId != null && e.target.releasePointerCapture) {
+              try {
+                e.target.releasePointerCapture(e.pointerId);
+              } catch {}
+            }
+            this.pressing = true;
+            this.play(pitch);
+            window.addEventListener('pointerup', this.pressEnd);
+            window.addEventListener('pointercancel', this.pressEnd);
+          },
+          pressEnter(pitch) {
+            if (this.pressing) this.play(pitch);
+          },
+          pressEnd() {
+            this.pressing = false;
+            window.removeEventListener('pointerup', this.pressEnd);
+            window.removeEventListener('pointercancel', this.pressEnd);
+          },
+        },
+      });
       const scaleLabelMixin = {
         computed: {
           scaleLabel() {
@@ -4535,6 +4777,7 @@
         QUANT: ModuleQuant,
         CHORD: ModuleChord,
         CHANCE: ModuleChance,
+        PIANO: ModulePiano,
         SCL: ModuleScl,
         MIDIOUT: ModuleMidiOut,
         VIKTOR: ModuleViktor,
@@ -5252,6 +5495,7 @@
               }
             }
             viktorPanic();
+            for (const m of this.modules) if (m.type === 'PIANO') pianoClear(m);
             this.activeNotes.length = 0;
           },
 
