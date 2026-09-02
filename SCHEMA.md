@@ -166,6 +166,21 @@ Port names are exactly the strings used in `from.port` / `to.port`.
 - Passes each note with probability `prob`%.
 - **params:** `prob` (80).
 
+### PIANO  (keyboard monitor / clickable keys)
+- **inputs:** `in` (note) · **outputs:** `out` (note)
+- Passes every incoming note through to `out` unchanged, lighting its key
+  for the note's `gateLen` and updating a last-note readout (notes outside
+  the visible three octaves still pass and still update the readout).
+  Clicking a key (or dragging across keys) emits a note on `out`
+  immediately, with the transport running or stopped. Highlights clear on
+  STOP.
+- **params:**
+  | key    | type   | default | notes |
+  |--------|--------|---------|-------|
+  | `base` | number | `2`     | Octave of the lowest visible key, `-2`–`5` (Ableton numbering: `2` → C2 = MIDI 48 … B4). Three octaves are shown. |
+  | `vel`  | number | `100`   | Velocity of clicked notes (1–127). Incoming notes are untouched. |
+  | `gate` | number | `0.25`  | Duration of clicked notes in **seconds** (0.05–4); there is no clock to express a fraction of. Incoming notes keep their own `gateLen`. |
+
 ### SCL  (scale source)
 - **inputs:** none · **outputs:** `scl` (scale)
 - Broadcasts `{ root, scale }` on mount and on change. Patch CHORD/QUANT `scl` inputs from here.

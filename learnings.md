@@ -16,6 +16,7 @@ Patterns to recognize next time:
 - **Live drag elements intercepting hit-testing.** The SVG cable being drawn during a patch was eating `elementFromPoint` on the jack underneath. `pointer-events: none` on transient drag elements. Always.
 - **Nothing may follow `<component ... />` inside the in-DOM template.** The browser's HTML parser ignores the self-closing slash on non-void elements, so `<component/>` stays open and any sibling written after it parses as its *child* — Vue then treats it as slot content and silently drops it (module components render no default slot). The marquee div rendered nothing until it moved above the `<component>` list: state perfect, computed style perfect, zero warnings, element simply absent.
 - **Tiny click targets need fuzzy hit-testing.** 16px circular jacks miss `elementFromPoint` constantly. Walking an 8-pixel neighborhood in cardinal+diagonal directions and returning the first `.jack` ancestor turned the patching experience from frustrating to fluid. This is UX, not a workaround.
+- **`(s.x = {})` hands you the raw object, not Vue's proxy.** `const lit = s.lit || (s.lit = {})` on a `reactive()` state: the assignment expression evaluates to the plain `{}` you wrote, while `s.lit` read back later returns the tracked proxy. The first note on a fresh PIANO mutated the raw copy — state correct, DOM never re-rendered — and every later note worked, so the smoke tab passed and only a clean-page test caught it. Assign, then re-read: `if (!s.lit) s.lit = {}; const lit = s.lit;`.
 
 ## Architecture decisions worth keeping
 
